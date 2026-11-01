@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Participant Portal — Kahoot Relay Race</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <script src="./game-sync.js"></script>
+  <style>
+    .envelope-flap {
+      clip-path: polygon(0 0, 50% 50%, 100% 0);
+      transform-origin: top;
+      transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .envelope-open .envelope-flap {
+      transform: rotateX(180deg);
+    }
+    .tile {
+      user-select: none;
+      touch-action: manipulation;
+    }
+    @keyframes pulse-ring {
+      0%, 100% { transform: scale(0.96); opacity: 0.85; }
+      50% { transform: scale(1.04); opacity: 1; }
+    }
+    .kahoot-pulse {
+      animation: pulse-ring 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
+
+  <!-- Kahoot 3-2-1 Synced Start Countdown Overlay -->
+  <div id="kahootStartCountdownOverlay" class="fixed inset-0 z-50 bg-purple-950/95 backdrop-blur-md flex flex-col items-center justify-center hidden">
+    <div class="text-center">
+      <span class="text-xl md:text-2xl font-black text-amber-400 uppercase tracking-widest block mb-2">⚡ ALL GROUPS READY! ⚡</span>
+      <div id="countdownNumberDisplay" class="text-8xl md:text-9xl font-black text-white tracking-wider animate-bounce">3</div>
+      <p class="text-sm font-bold text-purple-300 mt-4">Race to complete all 5 questions first!</p>
+    </div>
+  </div>
+
+  <!-- Top Global Header -->
+  <header class="bg-purple-950/90 border-b border-purple-800/80 sticky top-0 z-40 px-4 py-3 backdrop-blur shadow-xl">
+    <div class="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 to-rose-500 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-amber-500/20">
+          🏆
+        </div>
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <h1 class="text-base sm:text-lg font-black tracking-wide text-white">
+              KAHOOT RELAY RACE
+            </h1>
+            <span id="sessionStatusPill" class="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-slate-900 text-slate-400 border border-slate-700 uppercase">
+              WAITING FOR ADMIN
+            </span>
+          </div>
+          <p class="text-[11px] text-purple-300 font-medium">Participant Portal • 8 Groups • 5 Envelope Questions</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="globalLeaderboardBtn" class="bg-purple-900/80 hover:bg-purple-800 text-amber-300 border border-purple-700 text-xs font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5 shadow">
+          <span>👑</span>
+          <span class="hidden sm:inline">Live Leaderboard</span>
+        </button>
+
+        <button id="rulesNavBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold px-3 py-2 rounded-xl transition">
+          Rules
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Participant Portal -->
+  <main class="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6 flex flex-col gap-5">
+
+    <!-- ================================================ -->
+    <!-- STEP A: JOIN SCREEN (PIN CODE + GROUP SELECTION) -->
+    <!-- ================================================ -->
+    <div id="participantJoinCard" class="bg-purple-950/70 border border-purple-800/80 rounded-3xl p-6 md:p-8 text-center max-w-xl mx-auto w-full shadow-2xl backdrop-blur my-auto">
+      <div class="w-16 h-16 bg-amber-400/10 border border-amber-400/30 text-amber-400 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3 kahoot-pulse">
+        🎮
+      </div>
+      <h2 class="text-2xl font-black text-white">Join the Live Kahoot Race</h2>
+      <p class="text-xs text-purple-200 mt-1 mb-4">Enter the Game PIN set by the Admin and choose your Group (1–8) to enter!</p>
+
+      <!-- Live Lobby Readiness Indicator -->
+      <div id="lobbyPinReadyBanner" class="mb-5 px-3.5 py-2 rounded-xl border text-xs font-bold inline-flex items-center gap-2 bg-slate-950/80 border-purple-800 text-purple-300">
+        <span id="lobbyReadyDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+        <span id="lobbyReadyText">Checking lobby status...</span>
+      </div>
+
+      <form id="participantJoinForm" class="space-y-5 text-left">
+        <!-- 1. Enter PIN -->
+        <div>
+          <label for="inputGamePin" class="text-[11px] font-black text-purple-300 uppercase tracking-wider block mb-1.5">
+            1. Enter Game PIN Code
+          </label>
+          <input
+            id="inputGamePin"
+            type="text"
+            maxlength="8"
+            autocomplete="off"
+            placeholder="ENTER PIN CODE"
+            class="w-full bg-slate-950 border-2 border-purple-800 focus:border-amber-400 text-amber-300 font-mono font-black text-center text-2xl p-3 rounded-xl uppercase tracking-[0.25em] outline-none placeholder:text-slate-700 placeholder:text-base placeholder:tracking-wider"
+          >
+        </div>
+
+        <!-- 2. Select Group -->
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="text-[11px] font-black text-purple-300 uppercase tracking-wider">
+              2. Choose Your Group (1–8)
+            </label>
+            <span id="selectedGroupLabel" class="text-[11px] font-bold text-amber-400">
+              No group selected
+            </span>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5" id="groupSelectorGrid">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <div id="joinErrorMessage" class="hidden text-xs text-rose-300 font-semibold bg-rose-950/60 border border-rose-700 p-3 rounded-xl text-center"></div>
+
+        <button type="submit" id="confirmJoinBtn" class="w-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black py-3.5 rounded-xl shadow-lg shadow-amber-500/20 transition transform active:scale-95 text-sm uppercase tracking-wider">
+          Join Game Lobby 🚀
+        </button>
+      </form>
+
+      <div class="mt-6 pt-4 border-t border-purple-800/60 flex items-center justify-center gap-2 text-xs text-purple-300">
+        <span>⚡</span>
+        <span>All groups start simultaneously. <strong>First group to solve all 5 questions wins!</strong></span>
+      </div>
+    </div>
+
+    <!-- ================================================ -->
+    <!-- STEP B: WAITING LOBBY (AFTER JOINING WITH PIN)   -->
+    <!-- ================================================ -->
+    <div id="participantWaitingLobbyCard" class="hidden bg-purple-950/80 border-2 border-purple-700 rounded-3xl p-8 text-center max-w-xl mx-auto w-full shadow-2xl my-auto">
+      <div class="w-20 h-20 bg-amber-400 text-slate-950 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3 shadow-xl kahoot-pulse font-black" id="lobbyGroupAvatar">
+        G1
+      </div>
+      <h3 class="text-2xl font-black text-white" id="lobbyGroupNameDisplay">Group 1 Ready!</h3>
+      <p class="text-xs text-purple-300 mt-1">
+        Joined with Game PIN <span id="lobbyConfirmedPin" class="font-mono font-black text-amber-300 bg-slate-950 px-2 py-0.5 rounded border border-purple-800">----</span>
+      </p>
+
+      <div class="inline-flex items-center gap-2 bg-purple-900/90 text-amber-300 font-black text-xs px-4 py-2 rounded-full mt-4 border border-purple-700">
+        <span class="animate-ping w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+        <span>YOU'RE IN! WAITING FOR ADMIN TO START THE RACE...</span>
+      </div>
+
+      <div class="mt-6 p-4 bg-slate-950/70 rounded-2xl border border-purple-800 text-left">
+        <span class="text-xs font-black text-purple-300 uppercase tracking-wider block mb-2.5">Lobby Groups (Live):</span>
+        <div id="lobbyConnectedList" class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <button id="lobbyLeaveBtn" type="button" class="mt-6 text-xs font-bold text-rose-300 hover:text-white bg-slate-900/80 hover:bg-rose-900/60 px-4 py-2 rounded-xl border border-purple-800 transition">
+        ← Leave or Switch Group
+      </button>
+    </div>
+
+    <!-- ================================================ -->
+    <!-- STEP C: ACTIVE PLAY AREA                         -->
+    <!-- ================================================ -->
+    <div id="participantPlayArea" class="hidden flex flex-col gap-5">
+
+      <!-- Group Header & 5-Step Progress Bar -->
+      <div class="bg-purple-950/80 border border-purple-800 rounded-2xl p-4 flex flex-col gap-3 shadow-lg">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <div id="playerGroupBadge" class="w-12 h-12 rounded-xl bg-amber-400 text-slate-950 font-black flex items-center justify-center text-xl shadow">
+              G1
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 id="playerGroupNameText" class="text-base font-black text-white">Group 1</h2>
+                <span id="playerScoreTag" class="text-[11px] bg-amber-400/20 text-amber-300 font-black px-2 py-0.5 rounded border border-amber-400/40 font-mono">
+                  0 PTS
+                </span>
+              </div>
+              <p class="text-xs text-purple-300">Complete all 5 envelopes first to win!</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <div class="text-right">
+              <span class="text-[10px] text-purple-300 uppercase tracking-wider block font-black">Progress</span>
+              <span id="playerQuestionProgressText" class="text-sm sm:text-base font-black text-amber-400">Question 1 / 5</span>
+            </div>
+
+            <div class="text-right bg-slate-950 px-3.5 py-1.5 rounded-xl border border-purple-800">
+              <span class="text-[10px] text-purple-300 uppercase tracking-wider block font-black">Race Clock</span>
+              <span id="participantTimer" class="font-mono text-base font-black text-emerald-400">00:00</span>
+            </div>
+
+            <button id="playAreaLeaveBtn" title="Leave Group" class="text-xs text-purple-300 hover:text-rose-300 bg-slate-950 px-2.5 py-2 rounded-xl border border-purple-800 transition">
+              Exit
+            </button>
+          </div>
+        </div>
+
+        <div class="w-full bg-slate-950 rounded-full h-4 border border-purple-800 overflow-hidden flex" id="player5StepProgressBar"></div>
+      </div>
+
+      <!-- Paused Notice Banner -->
+      <div id="participantPausedBanner" class="hidden bg-amber-950/80 border-2 border-amber-500 rounded-2xl p-4 text-center shadow-lg">
+        <span class="text-sm font-black text-amber-300">⏸ RACE PAUSED BY ADMIN</span>
+        <p class="text-xs text-amber-100/80 mt-0.5">Hold tight! Submissions will unlock as soon as the Admin resumes the race.</p>
+      </div>
+
+      <!-- Winner Announcement Banner -->
+      <div id="participantWinnerBanner" class="hidden bg-gradient-to-r from-purple-950 via-amber-950 to-purple-950 border-2 border-amber-400 rounded-3xl p-6 text-center shadow-2xl">
+        <span class="text-xs font-black uppercase tracking-widest px-3 py-1 bg-amber-400 text-slate-950 rounded-full">
+          🏁 RACE COMPLETE! CHAMPION CROWNED 🏆
+        </span>
+        <h3 id="winnerBannerHeading" class="text-2xl md:text-3xl font-black text-amber-300 mt-3">
+          Winner Announced!
+        </h3>
+        <p id="winnerBannerSubtext" class="text-sm text-purple-200 mt-1 max-w-lg mx-auto"></p>
+        <div class="mt-4 flex justify-center gap-2">
+          <button id="viewLeaderboardFromBannerBtn" class="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl transition shadow">
+            View Final Kahoot Podium 🏆
+          </button>
+        </div>
+      </div>
+
+      <!-- Sealed Envelope Card -->
+      <div id="envelopeCoverCard" class="bg-purple-950/60 border-2 border-dashed border-purple-800 rounded-3xl p-8 text-center flex flex-col items-center justify-center">
+        <div id="envelopeVisual" class="relative w-64 h-40 bg-amber-800 rounded-xl shadow-2xl flex items-center justify-center border-4 border-amber-950 overflow-hidden cursor-pointer group transition transform hover:scale-105">
+          <div class="absolute inset-x-0 top-0 h-20 bg-amber-700 envelope-flap border-b-2 border-amber-950"></div>
+          <div class="absolute inset-0 flex flex-col items-center justify-center text-amber-100 z-10 pointer-events-none p-3">
+            <span class="text-3xl mb-1">✉️</span>
+            <span id="envelopeTitleText" class="font-black text-sm tracking-wider text-amber-200">QUESTION ENVELOPE 1 OF 5</span>
+            <span class="text-[10px] opacity-75">Click to break seal & inspect clue</span>
+          </div>
+          <div class="absolute bottom-2 right-2 bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow">
+            SEALED
+          </div>
+        </div>
+        <p class="mt-4 text-xs text-purple-300 max-w-md">
+          Inside lies your question hint and scrambled puzzle fragments.
+        </p>
+        <button id="unsealEnvelopeBtn" class="mt-4 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-6 py-2.5 rounded-full shadow-lg transition">
+          Break Seal & Open Envelope 📬
+        </button>
+      </div>
+
+      <!-- Opened Envelope Workspace -->
+      <div id="envelopeWorkspace" class="hidden flex flex-col gap-5">
+
+        <!-- Question Hint Card -->
+        <div class="bg-purple-950/70 border-l-4 border-amber-400 border-y border-r border-purple-800 rounded-2xl p-5 shadow-lg">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[11px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+              <span>💡</span> <span id="questionStepLabel">QUESTION 1 OF 5</span>
+            </span>
+            <span id="playerQuestionCategory" class="text-[10px] bg-purple-900 text-purple-200 font-bold px-2.5 py-0.5 rounded-full border border-purple-700">
+              General
+            </span>
+          </div>
+          <p id="playerQuestionHint" class="text-base sm:text-lg font-medium text-slate-100 leading-relaxed">
+            Loading assigned hint...
+          </p>
+        </div>
+
+        <!-- Interactive Puzzle Pieces Assembly Card -->
+        <div class="bg-purple-950/70 border border-purple-800 rounded-2xl p-5 shadow-md flex flex-col gap-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 class="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                <span>🧩</span> SCRAMBLED PUZZLE FRAGMENTS
+              </h4>
+              <p class="text-xs text-purple-300">Click fragments in order to assemble the answer, type it, or speak into the mic!</p>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button type="button" id="shuffleTilesBtn" class="text-[11px] bg-purple-900 hover:bg-purple-800 text-purple-200 px-2.5 py-1 rounded-lg border border-purple-700 font-bold transition">
+                🔀 Shuffle
+              </button>
+              <button type="button" id="clearTilesBtn" class="text-[11px] bg-slate-900 hover:bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg border border-purple-800 font-bold transition">
+                ↺ Clear
+              </button>
+            </div>
+          </div>
+
+          <!-- Available Scrambled Fragments Pool -->
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-purple-400 block mb-1.5">Available Fragments (Click to add):</span>
+            <div id="piecesTray" class="flex flex-wrap gap-2.5 min-h-[60px] p-3.5 bg-slate-950/70 rounded-xl border border-purple-900/80 items-center justify-center"></div>
+          </div>
+
+          <!-- Assembled Answer Tray -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Your Assembled Answer (Click tile to remove):</span>
+              <span id="wordStructureLabel" class="text-[10px] font-mono text-purple-300"></span>
+            </div>
+            <div id="assembledTray" class="flex flex-wrap gap-2 min-h-[60px] p-3.5 bg-slate-950 rounded-xl border-2 border-dashed border-purple-700 items-center justify-center"></div>
+          </div>
+
+          <button type="button" id="submitTilesAnswerBtn" class="w-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-sm py-3 rounded-xl shadow-lg transition active:scale-95">
+            Submit Assembled Answer ✓
+          </button>
+        </div>
+
+        <!-- Type or Voice Answer Station -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Type Answer -->
+          <form id="textAnswerForm" class="bg-purple-950/70 border border-purple-800 rounded-2xl p-4 flex flex-col justify-between gap-3 shadow">
+            <div>
+              <span class="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                <span>⌨️</span> Or Type Answer Directly
+              </span>
+              <p class="text-[11px] text-purple-300 mt-0.5">Type the unscrambled word or phrase and press Submit.</p>
+            </div>
+            <div class="flex gap-2">
+              <input id="textAnswerInput" type="text" autocomplete="off" placeholder="Type solution..." class="flex-1 bg-slate-950 border border-purple-800 focus:border-amber-400 text-white font-mono font-bold uppercase text-sm px-3 py-2.5 rounded-xl outline-none">
+              <button type="submit" id="submitTextAnswerBtn" class="bg-purple-800 hover:bg-purple-700 text-amber-300 font-black text-xs px-4 py-2.5 rounded-xl border border-purple-600 transition">
+                Submit
+              </button>
+            </div>
+          </form>
+
+          <!-- Voice Answer -->
+          <div class="bg-purple-950/70 border border-cyan-800/80 rounded-2xl p-4 flex flex-col justify-between gap-2.5 shadow">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-black uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                <span>🎙️</span> Or Speak Answer
+              </span>
+              <span id="playerMicTag" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-900 text-purple-200 border border-purple-700">
+                MIC READY
+              </span>
+            </div>
+            <button type="button" id="playerVoiceBtn" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition shadow active:scale-95">
+              <span>🎙️</span>
+              <span id="playerVoiceBtnText">Tap to Speak Answer</span>
+            </button>
+            <div id="playerVoiceTranscript" class="text-[11px] font-mono text-cyan-300 italic truncate">
+              Voice transcript appears here...
+            </div>
+          </div>
+        </div>
+
+        <!-- Submission Feedback Banner -->
+        <div id="participantFeedbackBox" class="text-xs font-bold p-3 rounded-xl bg-slate-950 border border-purple-900 text-purple-300 text-center">
+          Assemble the puzzle fragments, type your answer, or speak into the microphone!
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL: GLOBAL KAHOOT PODIUM & LEADERBOARD -->
+  <div id="leaderboardModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-purple-950 border-2 border-purple-700 rounded-3xl max-w-xl w-full p-6 shadow-2xl relative">
+      <div class="flex items-center justify-between border-b border-purple-800 pb-3 mb-4">
+        <div class="flex items-center gap-2">
+          <span class="text-2xl">👑</span>
+          <div>
+            <h3 class="text-lg font-black text-amber-400">KAHOOT GRAND PRIX PODIUM</h3>
+            <p class="text-[11px] text-purple-300">Ranked by questions completed (target: 5) & total points</p>
+          </div>
+        </div>
+        <button id="closeLeaderboardModalBtn" class="text-purple-300 hover:text-white text-lg font-bold">✕</button>
+      </div>
+
+      <div id="modalPodiumView" class="flex items-end justify-center gap-3 pt-4 pb-4 border-b border-purple-800 mb-4"></div>
+      <div id="modalLeaderboardTable" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
+
+      <div class="mt-5 flex justify-end">
+        <button id="closeLeaderboardBtn" class="bg-purple-900 hover:bg-purple-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl border border-purple-700">
+          Dismiss
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: RULES -->
+  <div id="rulesModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-purple-950 border border-purple-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-purple-800 pb-3 mb-3">
+        <h3 class="text-base font-black text-amber-400">How to Play: Kahoot Relay Race</h3>
+        <button id="closeRulesModalBtn" class="text-purple-300 hover:text-white text-lg font-bold">✕</button>
+      </div>
+      <ol class="space-y-2.5 text-xs text-purple-200">
+        <li class="flex items-start gap-2">
+          <span class="bg-amber-400 text-slate-950 font-black rounded-full w-5 h-5 flex items-center justify-center text-[10px] flex-shrink-0">1</span>
+          <span>Enter the <strong>Game PIN code</strong> set by the Admin and pick an available <strong>Group (1–8)</strong> to join the lobby.</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="bg-amber-400 text-slate-950 font-black rounded-full w-5 h-5 flex items-center justify-center text-[10px] flex-shrink-0">2</span>
+          <span>Wait in the lobby until the Admin starts the race — all groups begin simultaneously after the 3-2-1 countdown.</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="bg-amber-400 text-slate-950 font-black rounded-full w-5 h-5 flex items-center justify-center text-[10px] flex-shrink-0">3</span>
+          <span>Break the seal on each of your <strong>5 question envelopes</strong> to reveal your hint and scrambled fragments.</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="bg-amber-400 text-slate-950 font-black rounded-full w-5 h-5 flex items-center justify-center text-[10px] flex-shrink-0">4</span>
+          <span>Click fragments in order to assemble the answer, type it, or speak it via voice recognition.</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="bg-amber-400 text-slate-950 font-black rounded-full w-5 h-5 flex items-center justify-center text-[10px] flex-shrink-0">5</span>
+          <span><strong>First group to solve all 5 questions wins the Championship!</strong></span>
+        </li>
+      </ol>
+      <div class="mt-5 text-right">
+        <button id="gotRulesBtn" class="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-5 py-2 rounded-xl">
+          Got It!
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const {
+      TOTAL_QUESTIONS_TO_WIN,
+      shuffleArray,
+      normalizeAnswer,
+      getSharedState,
+      updateSharedState,
+      subscribeToState,
+      getElapsedSeconds,
+      formatDuration,
+      getRankedGroups,
+      fx
+    } = window.KahootRelay;
+
+    const TAB_SESSION_KEY = 'kahoot_participant_tab_session_v2';
+
+    // Tab-local UI state (allows multiple participant tabs in the same browser!)
+    let selectedGroupId = null;
+    let activeQuestionKey = null;
+    let envelopeOpenedForKey = null;
+    let availablePieces = [];
+    let placedPieces = [];
+    let lastCelebratedWin = null;
+    let lastCountdownBeepStep = null;
+
+    function loadTabSession() {
+      try {
+        const raw = sessionStorage.getItem(TAB_SESSION_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function saveTabSession(data) {
+      try {
+        if (!data) sessionStorage.removeItem(TAB_SESSION_KEY);
+        else sessionStorage.setItem(TAB_SESSION_KEY, JSON.stringify(data));
+      } catch (_) {}
+    }
+
+    function showJoinError(msg) {
+      const box = document.getElementById('joinErrorMessage');
+      if (!msg) {
+        box.classList.add('hidden');
+        box.textContent = '';
+        return;
+      }
+      box.textContent = msg;
+      box.classList.remove('hidden');
+    }
+
+    function setFeedback(msg, type = 'neutral') {
+      const el = document.getElementById('participantFeedbackBox');
+      el.textContent = msg;
+      const styles = {
+        success: 'text-xs font-bold p-3 rounded-xl bg-emerald-950/70 border border-emerald-500 text-emerald-300 text-center',
+        error: 'text-xs font-bold p-3 rounded-xl bg-rose-950/70 border border-rose-600 text-rose-300 text-center',
+        neutral: 'text-xs font-bold p-3 rounded-xl bg-slate-950 border border-purple-900 text-purple-300 text-center'
+      };
+      el.className = styles[type] || styles.neutral;
+    }
+
+    // --- GROUP SELECTION & JOIN BY PIN ---
+    window.selectGroupToJoin = function(groupId) {
+      const state = getSharedState();
+      const target = state.groups.find(g => g.id === groupId);
+      if (!target || target.joined) return;
+
+      selectedGroupId = groupId;
+      showJoinError(null);
+      fx.playPop();
+      renderGroupSelector(state);
+    };
+
+    function renderGroupSelector(state) {
+      const grid = document.getElementById('groupSelectorGrid');
+      const label = document.getElementById('selectedGroupLabel');
+
+      // Deselect if someone else took our tentatively clicked group before we hit Join
+      if (selectedGroupId) {
+        const g = state.groups.find(item => item.id === selectedGroupId);
+        if (!g || g.joined) selectedGroupId = null;
+      }
+
+      label.textContent = selectedGroupId ? `Selected: Group ${selectedGroupId}` : 'Click an available group';
+
+      grid.innerHTML = state.groups.map(g => {
+        const isTaken = g.joined;
+        const isSelected = g.id === selectedGroupId;
+
+        if (isTaken) {
+          return `
+            <button type="button" disabled class="p-3 rounded-xl border border-purple-900/60 bg-slate-900/50 text-slate-500 font-bold text-xs flex flex-col items-center justify-center gap-1 cursor-not-allowed opacity-60">
+              <span class="text-sm">🔒</span>
+              <span>${g.name}</span>
+              <span class="text-[10px] text-emerald-500 font-bold">● Joined</span>
+            </button>
+          `;
+        }
+
+        return `
+          <button type="button" onclick="selectGroupToJoin(${g.id})" class="p-3 rounded-xl border font-black text-xs transition flex flex-col items-center justify-center gap-1 ${
+            isSelected
+              ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-lg ring-2 ring-amber-400/50 scale-[1.02]'
+              : 'bg-slate-950 hover:bg-purple-900/60 text-slate-100 border-purple-800'
+          }">
+            <span class="text-sm">👥</span>
+            <span>${g.name}</span>
+            <span class="text-[10px] ${isSelected ? 'text-slate-900 font-black' : 'text-purple-400'}">
+              ${isSelected ? '✓ Selected' : '○ Available'}
+            </span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function handleParticipantJoin(e) {
+      e.preventDefault();
+      const state = getSharedState();
+      const enteredPin = document.getElementById('inputGamePin').value.trim().toUpperCase().replace(/\s+/g, '');
+
+      if (!state.gamePin) {
+        fx.playBuzzer();
+        showJoinError('Admin has not set a Game PIN yet. Ask the Admin to set the PIN on the Admin page first!');
+        return;
+      }
+
+      if (!enteredPin) {
+        fx.playBuzzer();
+        showJoinError('Please enter the Game PIN code provided by the Admin.');
+        return;
+      }
+
+      if (enteredPin !== state.gamePin.toUpperCase()) {
+        fx.playBuzzer();
+        showJoinError('Incorrect Game PIN! Double-check the PIN code on the Admin screen.');
+        return;
+      }
+
+      if (!selectedGroupId) {
+        fx.playBuzzer();
+        showJoinError('Please choose your Group (1–8) above before joining.');
+        return;
+      }
+
+      if (state.sessionState === 'ENDED') {
+        fx.playBuzzer();
+        showJoinError('This race has ended. Wait for Admin to reset the lobby for the next round.');
+        return;
+      }
+
+      let joinSucceeded = false;
+      const chosenId = selectedGroupId;
+
+      const updated = updateSharedState(s => {
+        if (s.gamePin.toUpperCase() !== enteredPin) return false;
+        const g = s.groups.find(item => item.id === chosenId);
+        if (!g || g.joined) return false;
+        g.joined = true;
+        g.joinedAt = Date.now();
+        joinSucceeded = true;
+      });
+
+      if (!joinSucceeded) {
+        fx.playBuzzer();
+        showJoinError(`Group ${chosenId} was just taken! Please pick another available group.`);
+        renderGroupSelector(updated);
+        return;
+      }
+
+      saveTabSession({
+        groupId: chosenId,
+        lobbyId: updated.lobbyId,
+        joinedPin: updated.gamePin
+      });
+      selectedGroupId = null;
+      envelopeOpenedForKey = null;
+      activeQuestionKey = null;
+      showJoinError(null);
+      fx.playPop();
+      renderParticipantUI(updated);
+    }
+
+    function handleLeaveGroup() {
+      const tabSession = loadTabSession();
+      if (tabSession && tabSession.groupId) {
+        updateSharedState(s => {
+          if (s.lobbyId !== tabSession.lobbyId) return false;
+          const g = s.groups.find(item => item.id === tabSession.groupId);
+          if (g) {
+            g.joined = false;
+            g.joinedAt = null;
+          }
+        });
+      }
+      saveTabSession(null);
+      selectedGroupId = null;
+      activeQuestionKey = null;
+      envelopeOpenedForKey = null;
+      fx.playPop();
+      renderParticipantUI(getSharedState());
+    }
+
+    // --- ENVELOPE & PUZZLE FRAGMENTS LOGIC ---
+    function unsealEnvelope() {
+      const state = getSharedState();
+      if (state.sessionState !== 'RUNNING') return;
+
+      const tabSession = loadTabSession();
+      if (!tabSession) return;
+      const myGroup = state.groups.find(g => g.id === tabSession.groupId);
+      if (!myGroup || myGroup.completedAll) return;
+
+      const activeQId = myGroup.questionTrack[myGroup.currentQuestionIndex];
+      const qKey = `${myGroup.id}-${myGroup.currentQuestionIndex}-${activeQId}`;
+
+      fx.playTear();
+      document.getElementById('envelopeVisual').classList.add('envelope-open');
+
+      setTimeout(() => {
+        envelopeOpenedForKey = qKey;
+        document.getElementById('envelopeVisual').classList.remove('envelope-open');
+        renderParticipantUI(getSharedState());
+      }, 450);
+    }
+
+    function initQuestionFragments(activeQ) {
+      const rawPieces = (activeQ.pieces && activeQ.pieces.length > 0)
+        ? [...activeQ.pieces]
+        : activeQ.answer.replace(/\s+/g, '').split('');
+
+      availablePieces = shuffleArray(rawPieces.map((text, idx) => ({
+        id: `piece-${activeQ.id}-${idx}`,
+        text
+      })));
+      placedPieces = [];
+
+      const words = activeQ.answer.trim().split(/\s+/);
+      document.getElementById('wordStructureLabel').textContent =
+        `Target: ${words.map(w => w.length + ' letters').join(' + ')}`;
+      document.getElementById('textAnswerInput').value = '';
+      setFeedback('Assemble the puzzle fragments, type your answer, or speak into the microphone!', 'neutral');
+
+      renderPuzzleTrays();
+    }
+
+    function renderPuzzleTrays() {
+      const poolEl = document.getElementById('piecesTray');
+      const assembledEl = document.getElementById('assembledTray');
+
+      if (availablePieces.length === 0) {
+        poolEl.innerHTML = `<span class="text-xs text-purple-400 italic">All fragments placed below!</span>`;
+      } else {
+        poolEl.innerHTML = availablePieces.map(p => `
+          <button type="button" onclick="placeFragment('${p.id}')" class="tile bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-base px-4 py-2 rounded-xl shadow-md border-2 border-amber-300 transition transform active:scale-95">
+            ${p.text}
+          </button>
+        `).join('');
+      }
+
+      if (placedPieces.length === 0) {
+        assembledEl.innerHTML = `<span class="text-xs text-purple-400 italic">Click fragments above to build your answer here...</span>`;
+      } else {
+        assembledEl.innerHTML = placedPieces.map(p => `
+          <button type="button" onclick="removeFragment('${p.id}')" class="tile bg-emerald-500 hover:bg-rose-500 text-slate-950 hover:text-white font-black text-base px-4 py-2 rounded-xl shadow-md border-2 border-emerald-300 transition transform active:scale-95">
+            ${p.text}
+          </button>
+        `).join('');
+      }
+    }
+
+    window.placeFragment = function(pieceId) {
+      const idx = availablePieces.findIndex(p => p.id === pieceId);
+      if (idx === -1) return;
+      const [piece] = availablePieces.splice(idx, 1);
+      placedPieces.push(piece);
+      fx.playPop();
+      renderPuzzleTrays();
+    };
+
+    window.removeFragment = function(pieceId) {
+      const idx = placedPieces.findIndex(p => p.id === pieceId);
+      if (idx === -1) return;
+      const [piece] = placedPieces.splice(idx, 1);
+      availablePieces.push(piece);
+      fx.playPop();
+      renderPuzzleTrays();
+    };
+
+    function clearPlacedFragments() {
+      availablePieces = [...availablePieces, ...placedPieces];
+      placedPieces = [];
+      fx.playPop();
+      renderPuzzleTrays();
+    }
+
+    function shuffleAvailableFragments() {
+      availablePieces = shuffleArray(availablePieces);
+      fx.playPop();
+      renderPuzzleTrays();
+    }
+
+    // --- ANSWER SUBMISSION & VERIFICATION ---
+    function verifyParticipantAnswer(rawText, method) {
+      const state = getSharedState();
+      if (state.sessionState !== 'RUNNING') {
+        setFeedback('⏸ Race is not currently active.', 'error');
+        return;
+      }
+
+      const tabSession = loadTabSession();
+      if (!tabSession) return;
+
+      const submittedClean = (rawText || '').trim();
+      if (!submittedClean) {
+        setFeedback('⚠️ Assemble fragments or enter an answer before submitting.', 'error');
+        return;
+      }
+
+      const myGroupSnap = state.groups.find(g => g.id === tabSession.groupId);
+      if (!myGroupSnap || myGroupSnap.completedAll) return;
+
+      const currentQId = myGroupSnap.questionTrack[myGroupSnap.currentQuestionIndex];
+      const assignedQ = state.questions.find(q => q.id === currentQId);
+      if (!assignedQ) return;
+
+      const isCorrect = normalizeAnswer(submittedClean) === normalizeAnswer(assignedQ.answer);
+      const elapsedSec = getElapsedSeconds(state);
+      const now = new Date();
+      const timestamp = now.toLocaleTimeString();
+      const speedPoints = Math.max(400, 1000 - elapsedSec * 4);
+
+      let groupJustWon = false;
+
+      const updated = updateSharedState(s => {
+        if (s.sessionState !== 'RUNNING') return false;
+        const g = s.groups.find(item => item.id === tabSession.groupId);
+        if (!g || g.completedAll) return false;
+
+        g.attempts += 1;
+
+        s.submissions.unshift({
+          groupName: g.name,
+          questionIndex: g.currentQuestionIndex + 1,
+          questionId: assignedQ.id,
+          submittedAnswer: submittedClean.toUpperCase(),
+          isCorrect,
+          timestamp,
+          elapsedSec,
+          method
+        });
+
+        if (isCorrect) {
+          g.score += speedPoints;
+          g.currentQuestionIndex += 1;
+
+          if (g.currentQuestionIndex >= TOTAL_QUESTIONS_TO_WIN) {
+            g.completedAll = true;
+            g.completedAt = timestamp;
+            g.totalDurationSec = elapsedSec;
+            groupJustWon = true;
+
+            if (!s.winningGroup) {
+              s.winningGroup = g.name;
+            }
+            if (s.raceStartedAt) {
+              s.accumulatedElapsedMs = (s.accumulatedElapsedMs || 0) + Math.max(0, Date.now() - s.raceStartedAt);
+            }
+            s.raceStartedAt = null;
+            s.sessionState = 'ENDED';
+          }
+        }
+      });
+
+      if (isCorrect) {
+        if (groupJustWon) {
+          fx.playFanfare();
+          if (typeof confetti === 'function') {
+            confetti({ particleCount: 220, spread: 95, origin: { y: 0.4 } });
+          }
+          setFeedback(`🏆 CHAMPION! You solved all 5 questions in ${elapsedSec}s!`, 'success');
+        } else {
+          fx.playCorrectJingle();
+          setFeedback(`✓ Correct ("${assignedQ.answer}")! +${speedPoints} PTS — Next envelope ready!`, 'success');
+          envelopeOpenedForKey = null;
+          activeQuestionKey = null;
+        }
+        renderParticipantUI(updated);
+      } else {
+        fx.playBuzzer();
+        setFeedback(`✗ "${submittedClean.toUpperCase()}" is incorrect. Try again!`, 'error');
+      }
+    }
+
+    // --- VOICE RECOGNITION ---
+    let recognition = null;
+    let isListening = false;
+
+    function initSpeech() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const tag = document.getElementById('playerMicTag');
+      const btn = document.getElementById('playerVoiceBtn');
+      const text = document.getElementById('playerVoiceBtnText');
+
+      if (!SR) {
+        tag.textContent = 'UNAVAILABLE';
+        text.textContent = 'Use Tiles or Typing';
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+        return;
+      }
+
+      recognition = new SR();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        isListening = true;
+        tag.textContent = 'LISTENING 🔴';
+        text.textContent = 'Speak Now...';
+        btn.classList.replace('bg-cyan-600', 'bg-rose-600');
+      };
+
+      recognition.onresult = (evt) => {
+        const spoken = evt.results[0][0].transcript;
+        document.getElementById('playerVoiceTranscript').innerHTML = `Heard: <strong class="text-white">"${spoken}"</strong>`;
+        verifyParticipantAnswer(spoken, 'Voice');
+      };
+
+      recognition.onerror = () => resetSpeechUI();
+      recognition.onend = () => resetSpeechUI();
+    }
+
+    function resetSpeechUI() {
+      isListening = false;
+      const tag = document.getElementById('playerMicTag');
+      const btn = document.getElementById('playerVoiceBtn');
+      const text = document.getElementById('playerVoiceBtnText');
+      if (tag && !btn.disabled) tag.textContent = 'MIC READY';
+      if (text && !btn.disabled) text.textContent = 'Tap to Speak Answer';
+      if (btn) btn.classList.replace('bg-rose-600', 'bg-cyan-600');
+    }
+
+    // --- MAIN RENDER ---
+    function renderParticipantUI(state) {
+      // Header Status Badge
+      const pill = document.getElementById('sessionStatusPill');
+      let stateKey = state.sessionState;
+      if (stateKey === 'NOT_STARTED' && !state.gamePin) stateKey = 'NO_PIN';
+
+      const badgeStyles = {
+        NO_PIN: 'bg-slate-900 text-amber-300 border-amber-700/60',
+        NOT_STARTED: 'bg-indigo-950 text-indigo-200 border-indigo-600',
+        COUNTDOWN: 'bg-amber-500 text-slate-950 border-amber-300 animate-bounce',
+        RUNNING: 'bg-emerald-900 text-emerald-300 border-emerald-500 animate-pulse',
+        PAUSED: 'bg-amber-900 text-amber-300 border-amber-600',
+        ENDED: 'bg-rose-950 text-rose-300 border-rose-800'
+      };
+      const badgeLabels = {
+        NO_PIN: 'WAITING FOR ADMIN PIN',
+        NOT_STARTED: 'LOBBY OPEN',
+        COUNTDOWN: 'STARTING...',
+        RUNNING: 'RACE IN PROGRESS',
+        PAUSED: 'PAUSED',
+        ENDED: 'RACE ENDED'
+      };
+      pill.textContent = badgeLabels[stateKey] || stateKey;
+      pill.className = `text-[10px] font-black px-2.5 py-0.5 rounded-full border ${badgeStyles[stateKey]}`;
+
+      // Validate current tab session against shared state
+      let tabSession = loadTabSession();
+      if (tabSession) {
+        const groupObj = state.groups.find(g => g.id === tabSession.groupId);
+        if (state.lobbyId !== tabSession.lobbyId || !groupObj || !groupObj.joined) {
+          saveTabSession(null);
+          tabSession = null;
+          activeQuestionKey = null;
+          envelopeOpenedForKey = null;
+          showJoinError('Lobby was updated or reset by Admin. Enter the current Game PIN and choose your group!');
+        }
+      }
+
+      const joinCard = document.getElementById('participantJoinCard');
+      const lobbyCard = document.getElementById('participantWaitingLobbyCard');
+      const playArea = document.getElementById('participantPlayArea');
+
+      // --- VIEW A: NOT JOINED YET ---
+      if (!tabSession) {
+        joinCard.classList.remove('hidden');
+        lobbyCard.classList.add('hidden');
+        playArea.classList.add('hidden');
+
+        const dot = document.getElementById('lobbyReadyDot');
+        const txt = document.getElementById('lobbyReadyText');
+        const banner = document.getElementById('lobbyPinReadyBanner');
+
+        if (state.gamePin) {
+          dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping';
+          txt.textContent = 'Lobby Open! Enter the Game PIN from Admin to join.';
+          banner.className = 'mb-5 px-3.5 py-2 rounded-xl border text-xs font-bold inline-flex items-center gap-2.5 bg-emerald-950/60 border-emerald-700 text-emerald-300';
+        } else {
+          dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
+          txt.textContent = 'Waiting for Admin to set a Game PIN on the Admin page...';
+          banner.className = 'mb-5 px-3.5 py-2 rounded-xl border text-xs font-bold inline-flex items-center gap-2.5 bg-slate-950/80 border-purple-800 text-purple-300';
+        }
+
+        renderGroupSelector(state);
+        return;
+      }
+
+      joinCard.classList.add('hidden');
+      const myGroup = state.groups.find(g => g.id === tabSession.groupId);
+
+      // --- VIEW B: WAITING LOBBY ---
+      if (state.sessionState === 'NOT_STARTED' || state.sessionState === 'COUNTDOWN') {
+        lobbyCard.classList.remove('hidden');
+        playArea.classList.add('hidden');
+
+        document.getElementById('lobbyGroupAvatar').textContent = `G${myGroup.id}`;
+        document.getElementById('lobbyGroupNameDisplay').textContent = `${myGroup.name} Ready!`;
+        document.getElementById('lobbyConfirmedPin').textContent = state.gamePin || '----';
+
+        document.getElementById('lobbyConnectedList').innerHTML = state.groups.map(g => `
+          <div class="text-xs px-2.5 py-2 rounded-xl border font-bold flex items-center justify-center gap-1.5 ${
+            g.id === myGroup.id
+              ? 'bg-amber-400/20 text-amber-300 border-amber-400'
+              : g.joined
+                ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700'
+                : 'bg-slate-900/70 text-slate-500 border-purple-900/70'
+          }">
+            <span>${g.joined ? '🟢' : '⚪'}</span>
+            <span>${g.name}${g.id === myGroup.id ? ' (You)' : ''}</span>
+          </div>
+        `).join('');
+        return;
+      }
+
+      // --- VIEW C: ACTIVE PLAY AREA ---
+      lobbyCard.classList.add('hidden');
+      playArea.classList.remove('hidden');
+
+      document.getElementById('playerGroupBadge').textContent = `G${myGroup.id}`;
+      document.getElementById('playerGroupNameText').textContent = myGroup.name;
+      document.getElementById('playerScoreTag').textContent = `${myGroup.score} PTS`;
+
+      const progressIdx = myGroup.currentQuestionIndex;
+      document.getElementById('playerQuestionProgressText').textContent = myGroup.completedAll
+        ? 'All 5 Solved! 🏁'
+        : `Question ${progressIdx + 1} / ${TOTAL_QUESTIONS_TO_WIN}`;
+
+      document.getElementById('player5StepProgressBar').innerHTML = Array.from({ length: TOTAL_QUESTIONS_TO_WIN }, (_, i) => {
+        const isDone = i < progressIdx;
+        const isCurrent = i === progressIdx && !myGroup.completedAll;
+        return `
+          <div class="flex-1 h-full border-r border-purple-950 flex items-center justify-center text-[10px] font-black ${
+            isDone ? 'bg-emerald-500 text-slate-950' : isCurrent ? 'bg-amber-400 text-slate-950 animate-pulse' : 'bg-slate-900 text-purple-400'
+          }">
+            Q${i + 1} ${isDone ? '✓' : ''}
+          </div>
+        `;
+      }).join('');
+
+      // Paused Banner
+      const pausedBanner = document.getElementById('participantPausedBanner');
+      if (state.sessionState === 'PAUSED') {
+        pausedBanner.classList.remove('hidden');
+      } else {
+        pausedBanner.classList.add('hidden');
+      }
+
+      // Winner / Ended Banner
+      const winnerBanner = document.getElementById('participantWinnerBanner');
+      const isRaceOver = state.sessionState === 'ENDED' || myGroup.completedAll || Boolean(state.winningGroup);
+
+      if (isRaceOver) {
+        winnerBanner.classList.remove('hidden');
+        const didWeWin = state.winningGroup === myGroup.name;
+        document.getElementById('winnerBannerHeading').textContent = didWeWin
+          ? `🏆 CHAMPIONS! ${myGroup.name} WON THE RACE!`
+          : `🏁 Race Over! ${state.winningGroup || 'Race Stopped'}`;
+        document.getElementById('winnerBannerSubtext').textContent = myGroup.completedAll
+          ? `Your group solved all 5 questions in ${myGroup.totalDurationSec}s (${myGroup.score} PTS)!`
+          : `Final Score: ${myGroup.score} PTS (${myGroup.currentQuestionIndex}/${TOTAL_QUESTIONS_TO_WIN} solved).`;
+
+        if (state.winningGroup && lastCelebratedWin !== state.winningGroup) {
+          lastCelebratedWin = state.winningGroup;
+          if (didWeWin && typeof confetti === 'function') {
+            confetti({ particleCount: 160, spread: 90, origin: { y: 0.4 } });
+          }
+        }
+      } else {
+        lastCelebratedWin = null;
+        winnerBanner.classList.add('hidden');
+      }
+
+      // Envelope vs Workspace display
+      const envelopeCover = document.getElementById('envelopeCoverCard');
+      const workspace = document.getElementById('envelopeWorkspace');
+
+      const activeQId = myGroup.questionTrack[progressIdx];
+      const activeQ = state.questions.find(q => q.id === activeQId);
+      const qKey = `${myGroup.id}-${progressIdx}-${activeQId}`;
+
+      if (!activeQ || myGroup.completedAll || isRaceOver) {
+        envelopeCover.classList.add('hidden');
+        workspace.classList.add('hidden');
+      } else if (envelopeOpenedForKey === qKey) {
+        envelopeCover.classList.add('hidden');
+        workspace.classList.remove('hidden');
+
+        document.getElementById('questionStepLabel').textContent = `QUESTION ${progressIdx + 1} OF ${TOTAL_QUESTIONS_TO_WIN}`;
+        document.getElementById('playerQuestionCategory').textContent = activeQ.category;
+        document.getElementById('playerQuestionHint').textContent = activeQ.hint;
+
+        if (activeQuestionKey !== qKey) {
+          activeQuestionKey = qKey;
+          initQuestionFragments(activeQ);
+        }
+      } else {
+        envelopeCover.classList.remove('hidden');
+        workspace.classList.add('hidden');
+        document.getElementById('envelopeTitleText').textContent = `QUESTION ENVELOPE ${progressIdx + 1} OF ${TOTAL_QUESTIONS_TO_WIN}`;
+      }
+
+      // Disable inputs if paused
+      const isDisabled = state.sessionState !== 'RUNNING';
+      document.getElementById('submitTilesAnswerBtn').disabled = isDisabled;
+      document.getElementById('submitTextAnswerBtn').disabled = isDisabled;
+      document.getElementById('unsealEnvelopeBtn').disabled = isDisabled;
+
+      if (!document.getElementById('leaderboardModal').classList.contains('hidden')) {
+        renderLeaderboardModal(state.groups);
+      }
+    }
+
+    function renderLeaderboardModal(groups) {
+      const sorted = getRankedGroups(groups);
+      const [first, second, third] = sorted;
+
+      document.getElementById('modalPodiumView').innerHTML = `
+        <div class="flex flex-col items-center">
+          <span class="text-xs font-bold text-purple-200">${second ? second.name : '-'}</span>
+          <span class="text-[10px] font-mono text-amber-300">${second ? second.score + ' PTS' : '--'}</span>
+          <div class="w-16 bg-slate-800 h-16 rounded-t-xl flex flex-col items-center justify-center border-t-2 border-slate-400 shadow mt-1">
+            <span class="text-lg">🥈</span>
+            <span class="text-[10px] font-bold text-slate-300">2ND</span>
+          </div>
+        </div>
+        <div class="flex flex-col items-center -mt-3">
+          <span class="text-xs font-black text-amber-300">${first ? first.name : '-'}</span>
+          <span class="text-[11px] font-mono text-amber-400 font-bold">${first ? first.score + ' PTS' : '--'}</span>
+          <div class="w-20 bg-gradient-to-t from-amber-500 to-amber-400 h-24 rounded-t-xl flex flex-col items-center justify-center border-t-2 border-amber-300 shadow-xl mt-1">
+            <span class="text-2xl">🥇</span>
+            <span class="text-xs font-black text-slate-950">1ST</span>
+          </div>
+        </div>
+        <div class="flex flex-col items-center">
+          <span class="text-xs font-bold text-purple-200">${third ? third.name : '-'}</span>
+          <span class="text-[10px] font-mono text-amber-300">${third ? third.score + ' PTS' : '--'}</span>
+          <div class="w-16 bg-amber-950/70 h-12 rounded-t-xl flex flex-col items-center justify-center border-t-2 border-amber-800 shadow mt-1">
+            <span class="text-base">🥉</span>
+            <span class="text-[10px] font-bold text-amber-300">3RD</span>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('modalLeaderboardTable').innerHTML = sorted.map((g, idx) => `
+        <div class="flex items-center justify-between p-2.5 rounded-xl border text-xs ${
+          g.completedAll ? 'bg-purple-900/60 border-amber-400' : 'bg-slate-950 border-purple-900'
+        }">
+          <div class="flex items-center gap-3">
+            <span class="font-black w-6 text-center ${idx === 0 ? 'text-amber-400' : 'text-purple-300'}">#${idx + 1}</span>
+            <div>
+              <span class="font-bold text-white">${g.name}</span>
+              <span class="text-[10px] text-purple-400 ml-1">(${g.currentQuestionIndex}/${TOTAL_QUESTIONS_TO_WIN} solved)</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 font-mono">
+            <span class="text-amber-300 font-bold">${g.score} PTS</span>
+            <span class="text-[10px] px-2 py-0.5 rounded font-bold ${
+              g.completedAll ? 'bg-amber-400 text-slate-950' : g.joined ? 'bg-emerald-950 text-emerald-300' : 'bg-slate-900 text-slate-500'
+            }">
+              ${g.completedAll ? '🏁 WON' : g.joined ? 'RACING' : 'VACANT'}
+            </span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function tickParticipantClockAndCountdown() {
+      const state = getSharedState();
+      const timerEl = document.getElementById('participantTimer');
+      if (timerEl) timerEl.textContent = formatDuration(getElapsedSeconds(state));
+
+      const overlay = document.getElementById('kahootStartCountdownOverlay');
+      const numDisplay = document.getElementById('countdownNumberDisplay');
+      const tabSession = loadTabSession();
+
+      if (tabSession && state.sessionState === 'COUNTDOWN' && state.countdownEndsAt) {
+        const msLeft = state.countdownEndsAt - Date.now();
+        if (msLeft > 0) {
+          overlay.classList.remove('hidden');
+          const step = msLeft > 2500 ? '3' : msLeft > 1500 ? '2' : msLeft > 500 ? '1' : 'GO! 🚀';
+          numDisplay.textContent = step;
+          if (step !== lastCountdownBeepStep) {
+            lastCountdownBeepStep = step;
+            fx.playBeep(step === 'GO! 🚀' ? 880 : 440);
+          }
+          return;
+        }
+      }
+      lastCountdownBeepStep = null;
+      overlay.classList.add('hidden');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSpeech();
+      renderParticipantUI(getSharedState());
+      subscribeToState(renderParticipantUI);
+      setInterval(tickParticipantClockAndCountdown, 150);
+
+      // Join & Leave
+      document.getElementById('participantJoinForm').addEventListener('submit', handleParticipantJoin);
+      document.getElementById('lobbyLeaveBtn').addEventListener('click', handleLeaveGroup);
+      document.getElementById('playAreaLeaveBtn').addEventListener('click', handleLeaveGroup);
+
+      // Envelope Unsealing
+      document.getElementById('unsealEnvelopeBtn').addEventListener('click', unsealEnvelope);
+      document.getElementById('envelopeVisual').addEventListener('click', unsealEnvelope);
+
+      // Puzzle Fragment Controls
+      document.getElementById('clearTilesBtn').addEventListener('click', clearPlacedFragments);
+      document.getElementById('shuffleTilesBtn').addEventListener('click', shuffleAvailableFragments);
+      document.getElementById('submitTilesAnswerBtn').addEventListener('click', () => {
+        const combined = placedPieces.map(p => p.text).join('');
+        verifyParticipantAnswer(combined, 'Puzzle Tiles');
+      });
+
+      // Direct Text Answer
+      document.getElementById('textAnswerForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const val = document.getElementById('textAnswerInput').value;
+        verifyParticipantAnswer(val, 'Typed');
+      });
+
+      // Voice Answer
+      document.getElementById('playerVoiceBtn').addEventListener('click', () => {
+        if (!recognition) return;
+        if (isListening) recognition.stop();
+        else recognition.start();
+      });
+
+      // Leaderboard Modal
+      const lbModal = document.getElementById('leaderboardModal');
+      const openLb = () => {
+        renderLeaderboardModal(getSharedState().groups);
+        lbModal.classList.remove('hidden');
+      };
+      document.getElementById('globalLeaderboardBtn').addEventListener('click', openLb);
+      document.getElementById('viewLeaderboardFromBannerBtn').addEventListener('click', openLb);
+      document.getElementById('closeLeaderboardModalBtn').addEventListener('click', () => lbModal.classList.add('hidden'));
+      document.getElementById('closeLeaderboardBtn').addEventListener('click', () => lbModal.classList.add('hidden'));
+
+      // Rules Modal
+      const rModal = document.getElementById('rulesModal');
+      document.getElementById('rulesNavBtn').addEventListener('click', () => rModal.classList.remove('hidden'));
+      document.getElementById('closeRulesModalBtn').addEventListener('click', () => rModal.classList.add('hidden'));
+      document.getElementById('gotRulesBtn').addEventListener('click', () => rModal.classList.add('hidden'));
+    });
+  </script>
+</body>
+</html>

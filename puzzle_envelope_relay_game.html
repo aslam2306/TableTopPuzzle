@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kahoot Envelope Relay — Portal Launcher</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="./game-sync.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center p-6 font-sans selection:bg-amber-500 selection:text-slate-950">
+
+  <div class="max-w-3xl w-full bg-purple-950/70 border border-purple-800 rounded-3xl p-8 md:p-10 shadow-2xl text-center backdrop-blur">
+    <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-rose-500 flex items-center justify-center text-3xl mx-auto mb-4 shadow-lg shadow-amber-500/20">
+      🏆
+    </div>
+
+    <h1 class="text-2xl sm:text-3xl font-black text-white tracking-wide">
+      KAHOOT ENVELOPE RELAY RACE
+    </h1>
+    <p class="text-sm text-purple-200 mt-2 max-w-xl mx-auto">
+      Open the <strong>Admin Page</strong> to set the Game PIN code and start the race, and open one or more <strong>Participant Pages</strong> in separate tabs to select groups and join with the PIN!
+    </p>
+
+    <!-- Live Status Pill -->
+    <div class="mt-5 inline-flex items-center gap-2.5 bg-slate-950/90 border border-purple-800 px-4 py-2 rounded-full text-xs font-bold text-purple-200">
+      <span id="hubStatusDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+      <span id="hubStatusText">Checking session status...</span>
+    </div>
+
+    <!-- Two Portal Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-8 text-left">
+
+      <!-- Admin Page Card -->
+      <a href="./admin.html" target="_blank" class="group bg-slate-950/90 hover:bg-indigo-950/70 border-2 border-indigo-700/70 hover:border-indigo-400 rounded-2xl p-6 transition transform hover:-translate-y-1 shadow-xl flex flex-col justify-between gap-4">
+        <div>
+          <div class="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-2xl mb-3">
+            🛡️
+          </div>
+          <h2 class="text-lg font-black text-white group-hover:text-indigo-300 transition">
+            1. Admin Console
+          </h2>
+          <p class="text-xs text-purple-300 mt-1 leading-relaxed">
+            Set or generate the Game PIN code, manage puzzle questions, monitor joined groups (1–8), and start the live countdown.
+          </p>
+        </div>
+        <span class="inline-flex items-center gap-1.5 text-xs font-black text-indigo-300 group-hover:text-white uppercase tracking-wider">
+          Open Admin Page ↗
+        </span>
+      </a>
+
+      <!-- Participant Page Card -->
+      <a href="./participant.html" target="_blank" class="group bg-slate-950/90 hover:bg-amber-950/40 border-2 border-amber-500/70 hover:border-amber-400 rounded-2xl p-6 transition transform hover:-translate-y-1 shadow-xl flex flex-col justify-between gap-4">
+        <div>
+          <div class="w-12 h-12 rounded-xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-2xl mb-3">
+            🎮
+          </div>
+          <h2 class="text-lg font-black text-white group-hover:text-amber-300 transition">
+            2. Participant Page
+          </h2>
+          <p class="text-xs text-purple-300 mt-1 leading-relaxed">
+            Enter the Admin's Game PIN code, choose an available Group (1–8), wait in the lobby, and race through all 5 envelopes!
+          </p>
+        </div>
+        <span class="inline-flex items-center gap-1.5 text-xs font-black text-amber-400 group-hover:text-amber-300 uppercase tracking-wider">
+          Open Participant Page ↗
+        </span>
+      </a>
+
+    </div>
+
+    <p class="text-[11px] text-purple-400 mt-6">
+      Tip: You can open multiple <strong>Participant Page</strong> tabs in the same browser to simulate several groups racing simultaneously!
+    </p>
+  </div>
+
+  <script>
+    const { getSharedState, subscribeToState } = window.KahootRelay;
+
+    function updateHubStatus(state) {
+      const joined = state.groups.filter(g => g.joined).length;
+      const dot = document.getElementById('hubStatusDot');
+      const txt = document.getElementById('hubStatusText');
+
+      if (!state.gamePin) {
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
+        txt.textContent = 'No Game PIN set yet — Open Admin Console first';
+      } else if (state.sessionState === 'RUNNING') {
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping';
+        txt.textContent = `Race in Progress • ${joined}/8 Groups Active`;
+      } else {
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+        txt.textContent = `Lobby Open • ${joined}/8 Groups Joined`;
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateHubStatus(getSharedState());
+      subscribeToState(updateHubStatus);
+    });
+  </script>
+</body>
+</html>
