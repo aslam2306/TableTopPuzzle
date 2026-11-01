@@ -1,0 +1,1737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Puzzle Envelope Relay - Admin & Participant Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <style>
+    @keyframes wiggle {
+      0%, 100% { transform: rotate(-2deg); }
+      50% { transform: rotate(2deg); }
+    }
+    .wiggle-hover:hover {
+      animation: wiggle 0.3s ease-in-out infinite;
+    }
+    .envelope-flap {
+      clip-path: polygon(0 0, 50% 50%, 100% 0);
+      transform-origin: top;
+      transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .envelope-open .envelope-flap {
+      transform: rotateX(180deg);
+    }
+    .tile-slot {
+      min-width: 48px;
+      min-height: 54px;
+    }
+    .tile {
+      user-select: none;
+      touch-action: manipulation;
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .kahoot-pulse {
+      animation: pulse-ring 2s infinite ease-in-out;
+    }
+    .bg-kahoot-gradient {
+      background: linear-gradient(135deg, #46178f 0%, #1e1338 50%, #0c0818 100%);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
+
+  <!-- Kahoot 3-2-1 Synced Start Countdown Overlay -->
+  <div id="kahootStartCountdownOverlay" class="fixed inset-0 z-50 bg-purple-950/95 backdrop-blur-md flex flex-col items-center justify-center hidden">
+    <div class="text-center">
+      <span class="text-xl md:text-2xl font-black text-amber-400 uppercase tracking-widest block mb-2">⚡ ALL GROUPS READY! ⚡</span>
+      <div id="countdownNumberDisplay" class="text-8xl md:text-9xl font-black text-white tracking-wider animate-bounce">3</div>
+      <p class="text-sm font-bold text-purple-300 mt-4">Race to complete all 5 questions first!</p>
+    </div>
+  </div>
+
+  <!-- Top Global Header -->
+  <header class="bg-purple-950/90 border-b border-purple-800/80 sticky top-0 z-40 px-4 py-2.5 backdrop-blur shadow-xl">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center space-x-3 cursor-pointer" onclick="switchView('participant')">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 to-rose-500 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-amber-500/20">
+          🏆
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-black tracking-wide text-white flex items-center gap-2">
+            KAHOOT RELAY RACE
+            <span id="sessionStatusPill" class="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-slate-900 text-slate-400 border border-slate-700 uppercase">
+              LOBBY OPEN
+            </span>
+          </h1>
+          <p class="text-[11px] text-purple-300 font-medium">8 Groups • 5 Questions Sprint • Live Synchronized Race</p>
+        </div>
+      </div>
+
+      <!-- Mode Switcher & Navigation Buttons -->
+      <div class="flex items-center gap-2">
+        <div class="bg-slate-950/80 p-1 rounded-xl border border-purple-800/60 flex items-center">
+          <button id="viewParticipantBtn" class="px-3 py-1.5 rounded-lg text-xs font-black transition bg-amber-500 text-slate-950 shadow">
+            Participant Portal
+          </button>
+          <button id="viewAdminBtn" class="px-3 py-1.5 rounded-lg text-xs font-bold transition text-purple-300 hover:text-white">
+            Admin Console 🔒
+          </button>
+        </div>
+
+        <button id="globalLeaderboardBtn" class="bg-purple-900/80 hover:bg-purple-800 text-amber-300 border border-purple-700 text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 shadow">
+          <span>👑</span>
+          <span class="hidden sm:inline">Live Leaderboard</span>
+        </button>
+
+        <button id="rulesNavBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold px-2.5 py-1.5 rounded-xl transition">
+          Rules
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================== -->
+  <!-- VIEW 1: PARTICIPANT WEBSITE                -->
+  <!-- ========================================== -->
+  <main id="participantViewSection" class="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6 flex flex-col gap-5">
+
+    <!-- Step A: Join Screen (If group not selected) -->
+    <div id="participantJoinCard" class="bg-purple-950/70 border border-purple-800/80 rounded-3xl p-6 md:p-8 text-center max-w-xl mx-auto w-full shadow-2xl backdrop-blur">
+      <div class="w-16 h-16 bg-amber-400/10 border border-amber-400/30 text-amber-400 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3 kahoot-pulse">
+        🎮
+      </div>
+      <h2 class="text-2xl font-black text-white">Join the Live Kahoot Race</h2>
+      <p class="text-xs text-purple-200 mt-1 mb-5">Enter Game PIN, pick your Group (1–8) and wait in lobby for Admin to start!</p>
+
+      <div class="space-y-4 text-left">
+        <div>
+          <label class="text-[11px] font-black text-purple-300 uppercase tracking-wider block mb-1">Game PIN</label>
+          <div class="flex gap-2">
+            <input id="inputGamePin" type="text" maxlength="6" value="7789" class="w-full bg-slate-950 border border-purple-800 focus:border-amber-400 text-amber-300 font-mono font-black text-center text-lg p-2.5 rounded-xl uppercase tracking-widest outline-none">
+            <button id="qrSimBtn" class="bg-purple-900 hover:bg-purple-800 text-white px-3 rounded-xl border border-purple-700 text-xs font-bold flex items-center gap-1">
+              <span>📷</span> Scan
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[11px] font-black text-purple-300 uppercase tracking-wider block mb-1">Select Group (1–8)</label>
+          <div class="grid grid-cols-4 gap-2" id="groupSelectorGrid">
+            <!-- 8 groups generated by JS -->
+          </div>
+        </div>
+
+        <div id="joinErrorMessage" class="hidden text-xs text-rose-400 font-semibold bg-rose-950/40 border border-rose-800 p-2.5 rounded-xl text-center"></div>
+
+        <button id="confirmJoinBtn" class="w-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black py-3 rounded-xl shadow-lg shadow-amber-500/20 transition transform active:scale-95 text-sm uppercase tracking-wider">
+          Enter Game Lobby 🚀
+        </button>
+      </div>
+
+      <div class="mt-6 pt-4 border-t border-purple-800/60 flex items-center justify-center gap-2 text-xs text-purple-300">
+        <span>⚡</span>
+        <span>All 8 groups race at once. <strong>First group to solve all 5 questions wins!</strong></span>
+      </div>
+    </div>
+
+    <!-- Step B: Waiting Lobby (Shown after join before Admin starts) -->
+    <div id="participantWaitingLobbyCard" class="hidden bg-purple-950/80 border-2 border-purple-700 rounded-3xl p-8 text-center max-w-xl mx-auto w-full shadow-2xl">
+      <div class="w-20 h-20 bg-amber-400 text-slate-950 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-3 shadow-xl kahoot-pulse font-black" id="lobbyGroupAvatar">
+        G1
+      </div>
+      <h3 class="text-2xl font-black text-white" id="lobbyGroupNameDisplay">Group 1 Ready!</h3>
+      <div class="inline-flex items-center gap-2 bg-purple-900/90 text-amber-300 font-black text-xs px-4 py-1.5 rounded-full mt-2 border border-purple-700">
+        <span class="animate-ping w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+        <span>YOU'RE IN THE LOBBY! WAITING FOR ADMIN TO START...</span>
+      </div>
+
+      <div class="mt-6 p-4 bg-slate-950/60 rounded-2xl border border-purple-800 text-left">
+        <span class="text-xs font-black text-purple-300 uppercase tracking-wider block mb-2">Connected Groups:</span>
+        <div id="lobbyConnectedList" class="flex flex-wrap gap-2">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <button id="lobbyLeaveBtn" class="mt-5 text-xs text-purple-300 hover:text-white underline">
+        Leave or Switch Group
+      </button>
+    </div>
+
+    <!-- Step C: Active Play Area (Shown once game starts) -->
+    <div id="participantPlayArea" class="hidden flex flex-col gap-5">
+
+      <!-- Active Group Info & Kahoot Race Progress Bar -->
+      <div class="bg-purple-950/80 border border-purple-800 rounded-2xl p-4 flex flex-col gap-3 shadow-lg">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <div id="playerGroupBadge" class="w-12 h-12 rounded-xl bg-amber-400 text-slate-950 font-black flex items-center justify-center text-xl shadow">
+              G1
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 id="playerGroupNameText" class="text-base font-black text-white">Group 1</h2>
+                <span id="playerScoreTag" class="text-[11px] bg-amber-400/20 text-amber-300 font-black px-2 py-0.5 rounded border border-amber-400/40 font-mono">
+                  0 PTS
+                </span>
+              </div>
+              <p class="text-xs text-purple-300">Kahoot Live Sprint • Complete 5 Questions to Win</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-4">
+            <div class="text-right">
+              <span class="text-[10px] text-purple-300 uppercase tracking-wider block font-black">Question Progress</span>
+              <span id="playerQuestionProgressText" class="text-base font-black text-amber-400">Question 1 / 5</span>
+            </div>
+
+            <div class="text-right bg-slate-950 px-3.5 py-1.5 rounded-xl border border-purple-800">
+              <span class="text-[10px] text-purple-300 uppercase tracking-wider block font-black">Race Clock</span>
+              <span id="participantTimer" class="font-mono text-base font-black text-emerald-400">00:00</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5-Stage Stepper Progress Bar -->
+        <div class="w-full bg-slate-950 rounded-full h-3.5 border border-purple-800 overflow-hidden flex" id="player5StepProgressBar">
+          <!-- Injected via JS -->
+        </div>
+      </div>
+
+      <!-- Winner Announcement Overlay (Shown when game finishes) -->
+      <div id="participantWinnerBanner" class="hidden bg-gradient-to-r from-purple-950 via-amber-950 to-purple-950 border-2 border-amber-400 rounded-3xl p-6 text-center shadow-2xl animate-pulse">
+        <span class="text-xs font-black uppercase tracking-widest px-3 py-1 bg-amber-400 text-slate-950 rounded-full">
+          🏁 RACE COMPLETE! CHAMPION CROWNED 🏆
+        </span>
+        <h3 id="winnerBannerHeading" class="text-2xl md:text-3xl font-black text-amber-300 mt-3">
+          Winner Announced!
+        </h3>
+        <p id="winnerBannerSubtext" class="text-sm text-purple-200 mt-1 max-w-lg mx-auto">
+          First group to solve all 5 questions has taken 1st place!
+        </p>
+        <div class="mt-4 flex justify-center gap-2">
+          <button id="viewLeaderboardFromBannerBtn" class="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl transition shadow">
+            View Final Kahoot Podium 🏆
+          </button>
+        </div>
+      </div>
+
+      <!-- Sealed Envelope Card -->
+      <div id="envelopeCoverCard" class="bg-purple-950/60 border-2 border-dashed border-purple-800 rounded-3xl p-8 text-center flex flex-col items-center justify-center">
+        <div id="envelopeVisual" class="relative w-64 h-40 bg-amber-800 rounded-xl shadow-2xl flex items-center justify-center border-4 border-amber-950 overflow-hidden cursor-pointer group transition transform hover:scale-105">
+          <div class="absolute inset-x-0 top-0 h-20 bg-amber-700 envelope-flap border-b-2 border-amber-950"></div>
+          <div class="absolute inset-0 flex flex-col items-center justify-center text-amber-100 z-10 pointer-events-none p-3">
+            <span class="text-3xl mb-1">✉️</span>
+            <span id="envelopeTitleText" class="font-black text-sm tracking-wider text-amber-200">QUESTION ENVELOPE 1 OF 5</span>
+            <span class="text-[10px] opacity-75">Click to break seal & inspect clue</span>
+          </div>
+          <div class="absolute bottom-2 right-2 bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow">
+            SEALED
+          </div>
+        </div>
+        <p class="mt-4 text-xs text-purple-300 max-w-md">
+          Inside lies your question hint and scrambled letter/fragment puzzle pieces.
+        </p>
+        <button id="unsealEnvelopeBtn" class="mt-4 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-6 py-2.5 rounded-full shadow-lg transition">
+          Break Seal & Open Envelope 📬
+        </button>
+      </div>
+
+      <!-- Opened Envelope Workspace -->
+      <div id="envelopeWorkspace" class="hidden flex flex-col gap-5">
+
+        <!-- Question Hint Card -->
+        <div class="bg-purple-950/70 border-l-4 border-amber-400 border-y border-r border-purple-800 rounded-2xl p-5 shadow-lg">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[11px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+              <span>💡</span> <span id="questionStepLabel">QUESTION 1 OF 5</span>
+            </span>
+            <span id="playerQuestionCategory" class="text-[10px] bg-purple-900 text-purple-200 font-bold px-2.5 py-0.5 rounded-full border border-purple-700">
+              General
+            </span>
+          </div>
+          <p id="playerQuestionHint" class="text-base sm:text-lg font-medium text-slate-100 leading-relaxed">
+            Loading assigned hint...
+          </p>
+        </div>
+
+        <!-- Puzzle Clue Pieces Area (Visual Reference Only - Voice Submission) -->
+        <div class="bg-purple-950/70 border border-purple-800 rounded-2xl p-5 shadow-md">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h4 class="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                <span>🧩</span> SCRAMBLED PUZZLE CLUES
+              </h4>
+              <p class="text-xs text-purple-300">Examine the letter fragments below and pronounce the complete solution using voice input</p>
+            </div>
+            <span class="text-[10px] bg-cyan-950 border border-cyan-800 text-cyan-300 font-mono px-2 py-0.5 rounded-full">
+              VOICE-ONLY INPUT
+            </span>
+          </div>
+
+          <!-- Scrambled Pieces Pool (Static Visual Clues) -->
+          <div id="piecesTray" class="flex flex-wrap gap-2.5 min-h-[64px] p-4 bg-slate-950/70 rounded-xl border border-purple-900/80 items-center justify-center">
+            <!-- Rendered by JS as non-draggable display badges -->
+          </div>
+
+          <!-- Target Word Slot Structure (Revealed upon speech match) -->
+          <div class="mt-4 pt-3 border-t border-purple-900/70">
+            <span class="text-[11px] text-purple-400 font-bold uppercase tracking-wider block mb-2 text-center">Word Structure:</span>
+            <div id="slotsTray" class="flex flex-wrap gap-2 min-h-[46px] items-center justify-center">
+              <!-- Word letter length slots -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Voice Recognition Answer Station -->
+        <div class="bg-purple-950/70 border border-cyan-800/80 rounded-2xl p-5 flex flex-col gap-3 shadow-lg">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-black uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+              <span>🎙️</span> Speak Your Answer
+            </span>
+            <span id="playerMicTag" class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-purple-900 text-purple-200 border border-purple-700">
+              MIC READY
+            </span>
+          </div>
+          <p class="text-xs text-purple-300">
+            Tap the microphone and pronounce the full word or phrase out loud. Answers are checked automatically!
+          </p>
+
+          <button id="playerVoiceBtn" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-black text-sm py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-cyan-600/20 active:scale-95">
+            <span class="text-lg">🎙️</span>
+            <span id="playerVoiceBtnText">Tap to Speak Answer</span>
+          </button>
+
+          <div id="playerVoiceTranscript" class="text-xs font-mono text-cyan-300 italic min-h-[2rem] bg-slate-950 p-3 rounded-xl border border-purple-900 flex items-center">
+            Voice output will display here...
+          </div>
+
+          <div id="participantFeedbackBox" class="text-xs font-semibold text-purple-300 min-h-[1.5rem] flex items-center">
+            Pronounce the solution matching your puzzle fragments.
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ========================================== -->
+  <!-- VIEW 2: ADMIN DASHBOARD                    -->
+  <!-- ========================================== -->
+  <main id="adminViewSection" class="hidden flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 flex flex-col gap-6">
+
+    <!-- Admin Authentication Card (If not logged in) -->
+    <div id="adminAuthCard" class="bg-purple-950/70 border border-purple-800 rounded-3xl p-6 md:p-8 text-center max-w-md mx-auto w-full shadow-2xl my-auto">
+      <div class="w-16 h-16 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">
+        🛡️
+      </div>
+      <h2 class="text-2xl font-black text-slate-100">Facilitator Login</h2>
+      <p class="text-xs text-purple-300 mt-1 mb-5">Enter administrator PIN to access race controls</p>
+
+      <div class="space-y-3 text-left">
+        <label class="text-[11px] font-bold text-purple-300 uppercase tracking-wider block">Admin PIN</label>
+        <input id="adminPinInput" type="password" value="1234" placeholder="Enter PIN (Default: 1234)" class="w-full bg-slate-950 border border-purple-800 focus:border-indigo-500 text-indigo-300 font-mono font-bold text-center text-lg p-2.5 rounded-xl tracking-widest outline-none">
+        
+        <div id="adminAuthError" class="hidden text-xs text-rose-400 font-semibold p-2 bg-rose-950/40 rounded-lg text-center"></div>
+
+        <button id="adminLoginBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 rounded-xl transition shadow-lg shadow-indigo-600/30 text-xs uppercase tracking-wider">
+          Unlock Admin Dashboard 🔓
+        </button>
+      </div>
+      <p class="text-[11px] text-purple-400 mt-4">Default PIN is <strong>1234</strong> for quick setup.</p>
+    </div>
+
+    <!-- Authenticated Admin Interface -->
+    <div id="adminMainContent" class="hidden flex flex-col gap-6">
+
+      <!-- Admin Top Toolbar & Kahoot Race Controls -->
+      <section class="bg-purple-950/80 border border-purple-800 rounded-2xl p-5 shadow-lg flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <span class="text-[11px] font-black uppercase tracking-wider text-amber-400 block mb-1">
+            KAHOOT GAME MASTER CONTROLS
+          </span>
+          <div class="flex items-center gap-3">
+            <h3 class="text-xl font-black text-white">Synchronized 5-Question Race</h3>
+            <span id="adminSessionStateTag" class="text-xs font-black px-2.5 py-0.5 rounded-full bg-slate-900 text-slate-400 border border-slate-700">
+              LOBBY OPEN
+            </span>
+          </div>
+          <p class="text-xs text-purple-300 mt-1">Starting the game triggers a simultaneous countdown for all groups. First to 5 wins!</p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="adminStartGameBtn" class="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl shadow-lg transition flex items-center gap-1.5 active:scale-95">
+            <span>🚀</span> START KAHOOT RACE (ALL GROUPS)
+          </button>
+          <button id="adminPauseGameBtn" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-black text-xs px-4 py-2.5 rounded-xl shadow transition flex items-center gap-1.5">
+            <span>⏸</span> Pause
+          </button>
+          <button id="adminEndGameBtn" class="bg-rose-600 hover:bg-rose-500 text-white font-black text-xs px-4 py-2.5 rounded-xl shadow transition flex items-center gap-1.5">
+            <span>⏹</span> Stop Race
+          </button>
+          <button id="adminResetSessionBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs px-3 py-2.5 rounded-xl border border-slate-700 transition">
+            Reset ↺
+          </button>
+        </div>
+      </section>
+
+      <!-- 8 Group Live Presence & Race Progress Grid -->
+      <section class="bg-purple-950/80 border border-purple-800 rounded-2xl p-5 shadow-lg">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div>
+            <h4 class="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+              <span>🏎️</span> LIVE RACE TRACK (GROUPS 1–8 PROGRESS)
+            </h4>
+            <p class="text-xs text-purple-300">Live question progression (0 to 5), score points, and active question status.</p>
+          </div>
+          <button id="adminShuffleQuestionsBtn" class="bg-purple-900 hover:bg-purple-800 text-amber-300 border border-purple-700 font-bold text-xs px-3 py-1.5 rounded-xl transition shadow flex items-center gap-1.5">
+            <span>🎲</span> Reshuffle Question Tracks
+          </button>
+        </div>
+
+        <!-- 8 Groups Cards Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" id="adminGroupsStatusGrid">
+          <!-- Dynamically generated 8 cards -->
+        </div>
+      </section>
+
+      <!-- Questions Repository (Add, Edit, Delete CRUD) -->
+      <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Form: Add or Edit Question -->
+        <div class="lg:col-span-1 bg-purple-950/80 border border-purple-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between">
+          <div>
+            <h4 id="questionFormHeading" class="text-xs font-black uppercase tracking-wider text-amber-400 mb-1">
+              ➕ ADD NEW QUESTION PAIR
+            </h4>
+            <p class="text-xs text-purple-300 mb-4">Manage questions pool. The race requires at least 5 questions.</p>
+
+            <form id="questionCrudForm" class="space-y-3 text-xs">
+              <input type="hidden" id="editingQuestionId" value="">
+
+              <div>
+                <label class="font-bold text-purple-300 uppercase tracking-wider block mb-1">Category / Topic</label>
+                <input id="qCategoryInput" type="text" placeholder="e.g. Technology, Astrophysics" required class="w-full bg-slate-950 border border-purple-900 focus:border-amber-400 text-slate-100 p-2.5 rounded-xl outline-none">
+              </div>
+
+              <div>
+                <label class="font-bold text-purple-300 uppercase tracking-wider block mb-1">Question Hint</label>
+                <textarea id="qHintInput" rows="3" placeholder="e.g. Microsoft data visualization tool..." required class="w-full bg-slate-950 border border-purple-900 focus:border-amber-400 text-slate-100 p-2.5 rounded-xl outline-none"></textarea>
+              </div>
+
+              <div>
+                <label class="font-bold text-purple-300 uppercase tracking-wider block mb-1">Correct Answer</label>
+                <input id="qAnswerInput" type="text" placeholder="e.g. POWER BI" required class="w-full bg-slate-950 border border-purple-900 focus:border-amber-400 text-amber-300 font-mono font-bold uppercase p-2.5 rounded-xl outline-none">
+              </div>
+
+              <div>
+                <label class="font-bold text-purple-300 uppercase tracking-wider block mb-1">Puzzle Pieces / Fragments</label>
+                <input id="qPiecesInput" type="text" placeholder="e.g. P, O, W, E, R, B, I (or leave blank to auto-split)" class="w-full bg-slate-950 border border-purple-900 focus:border-amber-400 text-slate-200 font-mono p-2.5 rounded-xl outline-none">
+                <span class="text-[10px] text-purple-400 mt-1 block">Leave empty to automatically break the answer into individual letter tiles.</span>
+              </div>
+
+              <div class="pt-2 flex gap-2">
+                <button type="submit" id="saveQuestionBtn" class="flex-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-2.5 rounded-xl transition shadow">
+                  Save Question
+                </button>
+                <button type="button" id="cancelEditBtn" class="hidden bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 rounded-xl border border-slate-700 font-bold">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div id="crudStatusMessage" class="mt-3 text-xs text-purple-300"></div>
+        </div>
+
+        <!-- Question List View -->
+        <div class="lg:col-span-2 bg-purple-950/80 border border-purple-800 rounded-2xl p-5 shadow-lg flex flex-col">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h4 class="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <span>📚</span> QUESTIONS REPOSITORY (<span id="questionCountPill" class="text-amber-400">0</span> AVAILABLE)
+              </h4>
+              <span class="text-xs text-purple-300">Requires ≥ 5 questions for each group's race track</span>
+            </div>
+            <button id="seedSampleQuestionsBtn" class="text-[11px] bg-purple-900 hover:bg-purple-800 text-amber-300 border border-purple-700 px-2.5 py-1.5 rounded-lg transition">
+              Load 8 Standard Questions
+            </button>
+          </div>
+
+          <div id="questionsListContainer" class="flex-1 space-y-2.5 overflow-y-auto max-h-[460px] pr-1">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Live Submissions & Verification Feed -->
+      <section class="bg-purple-950/80 border border-purple-800 rounded-2xl p-5 shadow-lg">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+            <span>⚡</span> LIVE RACE LOG (SUBMISSIONS & STREAKS)
+          </h4>
+          <span class="text-xs text-purple-400">Real-time answers evaluated against question keys</span>
+        </div>
+        <div id="adminSubmissionsFeed" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+          <!-- Populated by JS -->
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ========================================== -->
+  <!-- MODAL: GLOBAL KAHOOT PODIUM & LEADERBOARD  -->
+  <!-- ========================================== -->
+  <div id="leaderboardModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-purple-950 border-2 border-purple-700 rounded-3xl max-w-xl w-full p-6 shadow-2xl relative">
+      <div class="flex items-center justify-between border-b border-purple-800 pb-3 mb-4">
+        <div class="flex items-center gap-2">
+          <span class="text-2xl">👑</span>
+          <div>
+            <h3 class="text-lg font-black text-amber-400">KAHOOT GRAND PRIX PODIUM</h3>
+            <p class="text-[11px] text-purple-300">Ranked by questions completed (target: 5) & total points</p>
+          </div>
+        </div>
+        <button id="closeLeaderboardModalBtn" class="text-purple-300 hover:text-white text-lg font-bold">✕</button>
+      </div>
+
+      <!-- Podium Top 3 Display -->
+      <div id="modalPodiumView" class="flex items-end justify-center gap-3 pt-4 pb-4 border-b border-purple-800 mb-4">
+        <!-- Injected via JS -->
+      </div>
+
+      <!-- Complete 8 Groups Table -->
+      <div id="modalLeaderboardTable" class="space-y-2 max-h-60 overflow-y-auto pr-1">
+        <!-- Injected via JS -->
+      </div>
+
+      <div class="mt-5 flex justify-end">
+        <button id="closeLeaderboardBtn" class="bg-purple-900 hover:bg-purple-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl border border-purple-700">
+          Dismiss
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: HOW TO PLAY / RULES                 -->
+  <!-- ========================================== -->
+  <div id="rulesModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-purple-950 border border-purple-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-purple-800 pb-3 mb-3">
+        <h3 class="text-base font-black text-amber-400">How to Play: Kahoot Relay Race (5 Questions)</h3>
+        <button id="closeRulesModalBtn" class="text-purple-300 hover:text-white text-lg font-bold">✕</button>
+      </div>
+      <ol class="space-y-2.5 text-xs text-purple-200">
+        <li class="flex items-start gap-2">
+          <span class="bg-amber-400 text-slate-950 font-black rounded-full w-5 h-5 flex items-center justify-center text-[10px] flex-shrink-0">1</span>
+          <span>Join with your team (Groups 1–8) and wait in the lobby. <strong>All groups start simultaneously</strong> when Admin initiates the race.</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="bg-amber-400 text-slate-950 font-black rounded-full w-5 h-5 flex items-center justify-center text-[10px] flex-shrink-0">2</span>
+          <span>Each group receives <strong>5 sequential envelope questions</strong>. Break the seal to reveal your clue and puzzle fragments!</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="bg-amber-400 text-slate-950 font-black rounded-full w-5 h-5 flex items-center justify-center text-[10px] flex-shrink-0">3</span>
+          <span>Collaborate with your group to arrange the pieces, or speak the answer via voice recognition.</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="bg-amber-400 text-slate-950 font-black rounded-full w-5 h-5 flex items-center justify-center text-[10px] flex-shrink-0">4</span>
+          <span>Correct answers unlock the next question envelope automatically and grant speed bonus points!</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="bg-amber-400 text-slate-950 font-black rounded-full w-5 h-5 flex items-center justify-center text-[10px] flex-shrink-0">5</span>
+          <span><strong>The first group to answer all 5 questions wins the Kahoot Grand Championship</strong>!</span>
+        </li>
+      </ol>
+      <div class="mt-5 text-right">
+        <button id="gotRulesBtn" class="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-5 py-2 rounded-xl">
+          Got It!
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- AUDIO SYNTHESIZER ---
+    class SoundFX {
+      constructor() { this.ctx = null; }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+      }
+      playPop() {
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(450, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(850, this.ctx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.08);
+      }
+      playBeep(freq = 440) {
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.2);
+      }
+      playBuzzer() {
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(700, this.ctx.currentTime);
+        osc.frequency.setValueAtTime(950, this.ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.35);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.35);
+      }
+      playTear() {
+        this.init();
+        const bufferSize = this.ctx.sampleRate * 0.18;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 1100;
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.18);
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start();
+      }
+      playCorrectJingle() {
+        this.init();
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((f, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = f;
+          gain.gain.setValueAtTime(0.2, this.ctx.currentTime + i * 0.08);
+          gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + i * 0.08 + 0.22);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(this.ctx.currentTime + i * 0.08);
+          osc.stop(this.ctx.currentTime + i * 0.08 + 0.25);
+        });
+      }
+      playFanfare() {
+        this.init();
+        const freqs = [523.25, 659.25, 783.99, 1046.50, 1318.51];
+        freqs.forEach((f, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.value = f;
+          gain.gain.setValueAtTime(0.25, this.ctx.currentTime + i * 0.1);
+          gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + i * 0.1 + 0.35);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(this.ctx.currentTime + i * 0.1);
+          osc.stop(this.ctx.currentTime + i * 0.1 + 0.4);
+        });
+      }
+    }
+    const fx = new SoundFX();
+
+    // --- INITIAL QUESTION BANK (8 QUESTIONS AVAILABLE, 5 USED PER GROUP TRACK) ---
+    const initialQuestionBank = [
+      {
+        id: "q-1",
+        category: "Analytics & Tech",
+        hint: "Microsoft's interactive data visualization and business intelligence tool used for creating reports.",
+        answer: "POWER BI",
+        pieces: ["P", "O", "W", "E", "R", "B", "I"]
+      },
+      {
+        id: "q-2",
+        category: "Astrophysics",
+        hint: "The theoretical boundary around a black hole beyond which neither light nor matter can escape.",
+        answer: "EVENT HORIZON",
+        pieces: ["EV", "ENT", "HOR", "IZ", "ON"]
+      },
+      {
+        id: "q-3",
+        category: "World Heritage",
+        hint: "A 15th-century Inca citadel situated on a mountain ridge in southern Peru.",
+        answer: "MACHU PICCHU",
+        pieces: ["MA", "CHU", "PIC", "CHU"]
+      },
+      {
+        id: "q-4",
+        category: "Venture Capital",
+        hint: "A privately held startup company valued at over one billion US dollars.",
+        answer: "UNICORN",
+        pieces: ["U", "NI", "CO", "RN"]
+      },
+      {
+        id: "q-5",
+        category: "Computer Science",
+        hint: "A finite sequence of rigorous instructions used to solve specific classes of computation problems.",
+        answer: "ALGORITHM",
+        pieces: ["AL", "GO", "RI", "THM"]
+      },
+      {
+        id: "q-6",
+        category: "Biochemistry",
+        hint: "The molecule that carries genetic instructions in all living organisms and viruses.",
+        answer: "DNA HELIX",
+        pieces: ["D", "NA", "HE", "L", "IX"]
+      },
+      {
+        id: "q-7",
+        category: "Renewable Energy",
+        hint: "Technology that directly converts solar radiation into electrical power through semiconducting materials.",
+        answer: "PHOTOVOLTAIC",
+        pieces: ["PHO", "TO", "VOL", "TA", "IC"]
+      },
+      {
+        id: "q-8",
+        category: "Cloud Computing",
+        hint: "Software architectural pattern where applications are structured as collections of loosely coupled services.",
+        answer: "MICROSERVICES",
+        pieces: ["MI", "CRO", "SER", "VI", "CES"]
+      }
+    ];
+
+    const TOTAL_QUESTIONS_TO_WIN = 5;
+
+    // Groups 1 to 8 Definition with 5-Question Race State
+    const defaultGroups = Array.from({ length: 8 }, (_, i) => ({
+      id: i + 1,
+      name: `Group ${i + 1}`,
+      questionTrack: [], // 5 Question IDs assigned to this group
+      currentQuestionIndex: 0, // 0 to 5 (5 means won!)
+      score: 0,
+      joined: false,
+      completedAll: false,
+      completedAt: null,
+      totalDurationSec: null,
+      attempts: 0
+    }));
+
+    // --- APPLICATION STATE ---
+    let appState = {
+      isAdminLoggedIn: false,
+      currentView: 'participant',
+      gamePin: '7789',
+      sessionState: 'NOT_STARTED', // 'NOT_STARTED' | 'COUNTDOWN' | 'RUNNING' | 'PAUSED' | 'ENDED'
+      elapsedSeconds: 0,
+      timerInterval: null,
+      questions: [...initialQuestionBank],
+      groups: JSON.parse(JSON.stringify(defaultGroups)),
+      activeParticipantGroupId: 1,
+      activeParticipantJoined: false,
+      envelopeOpened: false,
+      placedPieces: [],
+      availablePieces: [],
+      submissions: [],
+      winningGroup: null
+    };
+
+    // --- UTILITIES ---
+    function normalize(text) {
+      return (text || '').replace(/[\s\-_]/g, '').toUpperCase();
+    }
+
+    function shuffle(arr) {
+      const copy = [...arr];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    // --- KAHOOT RACE TRACK INITIALIZATION ---
+    function generateTracksForGroups() {
+      if (appState.questions.length < TOTAL_QUESTIONS_TO_WIN) {
+        showAdminStatus(`⚠️ At least ${TOTAL_QUESTIONS_TO_WIN} questions are required!`, true);
+        return false;
+      }
+
+      appState.groups.forEach((group) => {
+        // Pick 5 questions for each group (shuffled unique slice)
+        const shuffled = shuffle(appState.questions);
+        group.questionTrack = shuffled.slice(0, TOTAL_QUESTIONS_TO_WIN).map(q => q.id);
+        group.currentQuestionIndex = 0;
+        group.score = 0;
+        group.completedAll = false;
+        group.completedAt = null;
+        group.totalDurationSec = null;
+        group.attempts = 0;
+      });
+
+      appState.winningGroup = null;
+      renderAdminGroups();
+      syncParticipantState();
+      renderLeaderboard();
+      showAdminStatus("✓ Generated 5-question Kahoot race tracks for Groups 1–8!");
+      return true;
+    }
+
+    // --- SYNCHRONIZED START & KAHOOT FLOW ---
+    function triggerSynchronizedStart() {
+      if (appState.sessionState === 'RUNNING') return;
+
+      generateTracksForGroups();
+      appState.sessionState = 'COUNTDOWN';
+      syncSessionBadges();
+
+      const overlay = document.getElementById('kahootStartCountdownOverlay');
+      const numDisplay = document.getElementById('countdownNumberDisplay');
+      overlay.classList.remove('hidden');
+
+      let count = 3;
+      numDisplay.textContent = count;
+      fx.playBeep(440);
+
+      const countdownInterval = setInterval(() => {
+        count--;
+        if (count > 0) {
+          numDisplay.textContent = count;
+          fx.playBeep(440);
+        } else if (count === 0) {
+          numDisplay.textContent = "GO! 🚀";
+          fx.playBeep(880);
+        } else {
+          clearInterval(countdownInterval);
+          overlay.classList.add('hidden');
+          startRaceClock();
+        }
+      }, 1000);
+    }
+
+    function startRaceClock() {
+      appState.sessionState = 'RUNNING';
+      appState.winningGroup = null;
+      appState.elapsedSeconds = 0;
+
+      clearInterval(appState.timerInterval);
+      appState.timerInterval = setInterval(() => {
+        if (appState.sessionState !== 'RUNNING') return;
+        appState.elapsedSeconds++;
+        updateTimerDisplay();
+      }, 1000);
+
+      syncSessionBadges();
+      syncParticipantState();
+      renderAdminGroups();
+      showAdminStatus("▶ Kahoot Race is LIVE! All 8 groups are racing simultaneously!");
+      fx.playFanfare();
+    }
+
+    function pauseGame() {
+      if (appState.sessionState !== 'RUNNING') return;
+      appState.sessionState = 'PAUSED';
+      clearInterval(appState.timerInterval);
+      appState.timerInterval = null;
+      syncSessionBadges();
+      syncParticipantState();
+      showAdminStatus("⏸ Game paused by Admin.");
+      fx.playPop();
+    }
+
+    function endGame(winnerName = null) {
+      appState.sessionState = 'ENDED';
+      clearInterval(appState.timerInterval);
+      appState.timerInterval = null;
+      syncSessionBadges();
+      syncParticipantState();
+
+      if (winnerName) {
+        appState.winningGroup = winnerName;
+        fx.playFanfare();
+        confetti({ particleCount: 220, spread: 100, origin: { y: 0.4 } });
+      }
+
+      showAdminStatus(`🏁 Race Finished! ${winnerName ? 'Champion: ' + winnerName : 'Race stopped.'}`);
+      renderLeaderboard();
+      renderAdminGroups();
+    }
+
+    function resetSession() {
+      clearInterval(appState.timerInterval);
+      appState.timerInterval = null;
+      appState.sessionState = 'NOT_STARTED';
+      appState.elapsedSeconds = 0;
+      appState.submissions = [];
+      appState.winningGroup = null;
+      appState.envelopeOpened = false;
+
+      appState.groups.forEach(g => {
+        g.currentQuestionIndex = 0;
+        g.score = 0;
+        g.completedAll = false;
+        g.completedAt = null;
+        g.totalDurationSec = null;
+        g.attempts = 0;
+      });
+
+      syncSessionBadges();
+      syncParticipantState();
+      renderAdminGroups();
+      renderAdminSubmissions();
+      renderLeaderboard();
+      showAdminStatus("↺ Session reset to Lobby state.");
+    }
+
+    function updateTimerDisplay() {
+      const mins = String(Math.floor(appState.elapsedSeconds / 60)).padStart(2, '0');
+      const secs = String(appState.elapsedSeconds % 60).padStart(2, '0');
+      const formatted = `${mins}:${secs}`;
+
+      const timerEl = document.getElementById('participantTimer');
+      if (timerEl) timerEl.textContent = formatted;
+    }
+
+    function syncSessionBadges() {
+      const pill = document.getElementById('sessionStatusPill');
+      const adminTag = document.getElementById('adminSessionStateTag');
+
+      const colors = {
+        'NOT_STARTED': 'bg-slate-900 text-slate-400 border-slate-700',
+        'COUNTDOWN': 'bg-amber-500 text-slate-950 border-amber-300 animate-bounce',
+        'RUNNING': 'bg-emerald-900 text-emerald-300 border-emerald-500 animate-pulse',
+        'PAUSED': 'bg-amber-900 text-amber-300 border-amber-600',
+        'ENDED': 'bg-rose-950 text-rose-300 border-rose-800'
+      };
+
+      const labels = {
+        'NOT_STARTED': 'LOBBY OPEN',
+        'COUNTDOWN': 'STARTING...',
+        'RUNNING': 'RACE IN PROGRESS',
+        'PAUSED': 'PAUSED',
+        'ENDED': 'RACE ENDED'
+      };
+
+      const text = labels[appState.sessionState] || appState.sessionState;
+      pill.textContent = text;
+      pill.className = `text-[10px] font-black px-2.5 py-0.5 rounded-full border ${colors[appState.sessionState]}`;
+
+      if (adminTag) {
+        adminTag.textContent = text;
+        adminTag.className = `text-xs font-black px-2.5 py-0.5 rounded-full border ${colors[appState.sessionState]}`;
+      }
+    }
+
+    // --- VIEW SWITCHING ---
+    function switchView(target) {
+      appState.currentView = target;
+      const partSection = document.getElementById('participantViewSection');
+      const adminSection = document.getElementById('adminViewSection');
+      const pBtn = document.getElementById('viewParticipantBtn');
+      const aBtn = document.getElementById('viewAdminBtn');
+
+      if (target === 'participant') {
+        partSection.classList.remove('hidden');
+        adminSection.classList.add('hidden');
+        pBtn.className = "px-3 py-1.5 rounded-lg text-xs font-black transition bg-amber-500 text-slate-950 shadow";
+        aBtn.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition text-purple-300 hover:text-white";
+        syncParticipantState();
+      } else {
+        partSection.classList.add('hidden');
+        adminSection.classList.remove('hidden');
+        aBtn.className = "px-3 py-1.5 rounded-lg text-xs font-black transition bg-indigo-600 text-white shadow";
+        pBtn.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition text-purple-300 hover:text-white";
+        renderAdminInterface();
+      }
+    }
+
+    // --- PARTICIPANT SITE & LOBBY LOGIC ---
+    function renderGroupSelectorButtons() {
+      const container = document.getElementById('groupSelectorGrid');
+      container.innerHTML = appState.groups.map(g => {
+        const isSelected = g.id === appState.activeParticipantGroupId;
+        return `
+          <button type="button" onclick="selectParticipantGroup(${g.id})" class="p-2.5 rounded-xl border font-black text-xs transition flex flex-col items-center justify-center gap-1 ${
+            isSelected 
+              ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md ring-2 ring-amber-400/40' 
+              : 'bg-slate-950 hover:bg-slate-800 text-slate-200 border-purple-900'
+          }">
+            <span class="text-sm">👥</span>
+            <span>Group ${g.id}</span>
+            <span class="text-[9px] ${g.joined ? 'text-emerald-400 font-bold' : 'text-purple-400'}">
+              ${g.joined ? '● Connected' : '○ Vacant'}
+            </span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    window.selectParticipantGroup = function(groupId) {
+      appState.activeParticipantGroupId = groupId;
+      renderGroupSelectorButtons();
+      fx.playPop();
+    };
+
+    function handleParticipantJoin() {
+      const enteredPin = document.getElementById('inputGamePin').value.trim();
+      const errBox = document.getElementById('joinErrorMessage');
+
+      if (enteredPin !== appState.gamePin) {
+        errBox.textContent = `Invalid Game PIN. Check with Facilitator (Default 7789).`;
+        errBox.classList.remove('hidden');
+        return;
+      }
+
+      errBox.classList.add('hidden');
+      appState.activeParticipantJoined = true;
+
+      const g = appState.groups.find(item => item.id === appState.activeParticipantGroupId);
+      if (g) g.joined = true;
+
+      fx.playPop();
+      syncParticipantState();
+      renderAdminGroups();
+    }
+
+    function syncParticipantState() {
+      renderGroupSelectorButtons();
+
+      const joinCard = document.getElementById('participantJoinCard');
+      const lobbyCard = document.getElementById('participantWaitingLobbyCard');
+      const playArea = document.getElementById('participantPlayArea');
+      const winnerBanner = document.getElementById('participantWinnerBanner');
+      const envelopeCover = document.getElementById('envelopeCoverCard');
+      const workspace = document.getElementById('envelopeWorkspace');
+
+      if (!appState.activeParticipantJoined) {
+        joinCard.classList.remove('hidden');
+        lobbyCard.classList.add('hidden');
+        playArea.classList.add('hidden');
+        return;
+      }
+
+      joinCard.classList.add('hidden');
+
+      // Check if session hasn't started yet -> show Waiting Lobby (Kahoot style)
+      if (appState.sessionState === 'NOT_STARTED' || appState.sessionState === 'COUNTDOWN') {
+        lobbyCard.classList.remove('hidden');
+        playArea.classList.add('hidden');
+
+        const currentGroup = appState.groups.find(g => g.id === appState.activeParticipantGroupId);
+        document.getElementById('lobbyGroupAvatar').textContent = `G${currentGroup.id}`;
+        document.getElementById('lobbyGroupNameDisplay').textContent = `${currentGroup.name} Ready!`;
+
+        const connectedList = document.getElementById('lobbyConnectedList');
+        connectedList.innerHTML = appState.groups.map(g => `
+          <span class="text-xs px-2.5 py-1 rounded-lg border font-bold flex items-center gap-1 ${
+            g.joined 
+              ? 'bg-emerald-950 text-emerald-300 border-emerald-600' 
+              : 'bg-slate-900 text-slate-500 border-purple-900'
+          }">
+            <span>${g.joined ? '🟢' : '⚪'}</span> ${g.name}
+          </span>
+        `).join('');
+
+        return;
+      }
+
+      // Game is running, paused, or ended -> show active play area
+      lobbyCard.classList.add('hidden');
+      playArea.classList.remove('hidden');
+
+      const currentGroup = appState.groups.find(g => g.id === appState.activeParticipantGroupId);
+      document.getElementById('playerGroupBadge').textContent = `G${currentGroup.id}`;
+      document.getElementById('playerGroupNameText').textContent = currentGroup.name;
+      document.getElementById('playerScoreTag').textContent = `${currentGroup.score} PTS`;
+
+      const progressIndex = currentGroup.currentQuestionIndex;
+      document.getElementById('playerQuestionProgressText').textContent = currentGroup.completedAll
+        ? "All 5 Solved! 🏁"
+        : `Question ${progressIndex + 1} of ${TOTAL_QUESTIONS_TO_WIN}`;
+
+      // Stepper progress indicator
+      const progressBar = document.getElementById('player5StepProgressBar');
+      progressBar.innerHTML = Array.from({ length: TOTAL_QUESTIONS_TO_WIN }, (_, i) => {
+        const isDone = i < progressIndex;
+        const isCurrent = i === progressIndex && !currentGroup.completedAll;
+        return `
+          <div class="flex-1 h-full border-r border-purple-950 flex items-center justify-center text-[10px] font-black ${
+            isDone ? 'bg-emerald-500 text-slate-950' : isCurrent ? 'bg-amber-400 text-slate-950 animate-pulse' : 'bg-slate-900 text-purple-400'
+          }">
+            Q${i + 1} ${isDone ? '✓' : ''}
+          </div>
+        `;
+      }).join('');
+
+      // Active Question resolution
+      const activeQId = currentGroup.questionTrack[progressIndex];
+      const activeQ = appState.questions.find(q => q.id === activeQId);
+
+      if (activeQ && !currentGroup.completedAll) {
+        document.getElementById('envelopeTitleText').textContent = `QUESTION ENVELOPE ${progressIndex + 1} OF 5`;
+        document.getElementById('questionStepLabel').textContent = `QUESTION ${progressIndex + 1} OF ${TOTAL_QUESTIONS_TO_WIN}`;
+        document.getElementById('playerQuestionCategory').textContent = activeQ.category;
+        document.getElementById('playerQuestionHint').textContent = activeQ.hint;
+      }
+
+      // Check if race won by anyone or this group
+      const voiceBtn = document.getElementById('playerVoiceBtn');
+
+      if (appState.sessionState === 'ENDED' || currentGroup.completedAll || appState.winningGroup) {
+        winnerBanner.classList.remove('hidden');
+        const isThisGroupWinner = appState.winningGroup === currentGroup.name;
+
+        document.getElementById('winnerBannerHeading').textContent = isThisGroupWinner
+          ? `🏆 CHAMPIONS! ${currentGroup.name} WON THE RACE!`
+          : `🏁 Race Over! ${appState.winningGroup || 'Champion'} finished all 5 first!`;
+
+        document.getElementById('winnerBannerSubtext').textContent = currentGroup.completedAll
+          ? `Your group completed all 5 questions in ${currentGroup.totalDurationSec}s! Final Score: ${currentGroup.score} PTS.`
+          : `Submissions are locked. Facilitator has recorded final standings.`;
+
+        if (voiceBtn) {
+          voiceBtn.disabled = true;
+          voiceBtn.classList.add('opacity-40', 'cursor-not-allowed');
+        }
+      } else {
+        winnerBanner.classList.add('hidden');
+        if (voiceBtn) {
+          voiceBtn.disabled = false;
+          voiceBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+        }
+      }
+
+      // Envelope open status
+      if (appState.envelopeOpened && activeQ && !currentGroup.completedAll) {
+        envelopeCover.classList.add('hidden');
+        workspace.classList.remove('hidden');
+        initPiecesForActiveQuestion(activeQ);
+      } else {
+        envelopeCover.classList.remove('hidden');
+        workspace.classList.add('hidden');
+      }
+
+      updateTimerDisplay();
+      syncSessionBadges();
+    }
+
+    function unsealParticipantEnvelope() {
+      if (appState.sessionState !== 'RUNNING') {
+        return;
+      }
+
+      const currentGroup = appState.groups.find(g => g.id === appState.activeParticipantGroupId);
+      if (currentGroup.completedAll) return;
+
+      fx.playTear();
+      document.getElementById('envelopeVisual').classList.add('envelope-open');
+
+      setTimeout(() => {
+        appState.envelopeOpened = true;
+        syncParticipantState();
+      }, 500);
+    }
+
+    function initPiecesForActiveQuestion(activeQ) {
+      let piecesList = [];
+      if (activeQ.pieces && activeQ.pieces.length > 0) {
+        piecesList = [...activeQ.pieces];
+      } else {
+        piecesList = activeQ.answer.replace(/\s+/g, '').split('');
+      }
+
+      appState.availablePieces = shuffle(piecesList.map((txt, idx) => ({
+        id: `frag-${activeQ.id}-${idx}-${txt}`,
+        text: txt
+      })));
+
+      renderSlots();
+      renderPiecesPool();
+    }
+
+    function renderSlots() {
+      const container = document.getElementById('slotsTray');
+      container.innerHTML = '';
+      const currentGroup = appState.groups.find(g => g.id === appState.activeParticipantGroupId);
+      const activeQId = currentGroup.questionTrack[currentGroup.currentQuestionIndex];
+      const q = appState.questions.find(item => item.id === activeQId);
+      if (!q) return;
+
+      const words = q.answer.trim().split(/\s+/);
+
+      words.forEach(word => {
+        const wordWrap = document.createElement('div');
+        wordWrap.className = 'flex gap-1 mx-1.5';
+        for (let i = 0; i < word.length; i++) {
+          const slot = document.createElement('div');
+          slot.className = 'w-7 h-9 rounded-lg border-b-2 border-purple-500 bg-slate-900/80 flex items-center justify-center font-mono font-bold text-slate-400 text-xs shadow-inner';
+          slot.textContent = '_';
+          wordWrap.appendChild(slot);
+        }
+        container.appendChild(wordWrap);
+      });
+    }
+
+    function renderPiecesPool() {
+      const pool = document.getElementById('piecesTray');
+      pool.innerHTML = '';
+
+      if (appState.availablePieces.length === 0) {
+        pool.innerHTML = `<span class="text-xs text-purple-400 italic">No pieces loaded.</span>`;
+        return;
+      }
+
+      appState.availablePieces.forEach(piece => {
+        const tile = document.createElement('div');
+        tile.className = 'bg-gradient-to-b from-amber-400 to-amber-500 text-slate-950 font-black text-lg px-4 py-2 rounded-xl shadow-md border-2 border-amber-300 flex items-center justify-center select-none cursor-default';
+        tile.textContent = piece.text;
+        pool.appendChild(tile);
+      });
+    }
+
+    // --- ANSWER VERIFICATION & 5-QUESTION ADVANCEMENT ---
+    function verifyAnswer(submittedText, method = "Voice Command") {
+      if (appState.sessionState !== 'RUNNING') {
+        setFeedback("Race is not running.", false);
+        return;
+      }
+
+      const currentGroup = appState.groups.find(g => g.id === appState.activeParticipantGroupId);
+      if (currentGroup.completedAll) return;
+
+      const currentQId = currentGroup.questionTrack[currentGroup.currentQuestionIndex];
+      const assignedQ = appState.questions.find(q => q.id === currentQId);
+      if (!assignedQ) return;
+
+      currentGroup.attempts++;
+      const isCorrect = normalize(submittedText) === normalize(assignedQ.answer);
+      const now = new Date();
+      const timestamp = now.toLocaleTimeString() + `.${String(now.getMilliseconds()).padStart(3, '0')}`;
+
+      const record = {
+        groupName: currentGroup.name,
+        questionIndex: currentGroup.currentQuestionIndex + 1,
+        questionId: assignedQ.id,
+        submittedAnswer: submittedText,
+        isCorrect: isCorrect,
+        timestamp: timestamp,
+        elapsedSec: appState.elapsedSeconds,
+        method: method
+      };
+
+      appState.submissions.unshift(record);
+      renderAdminSubmissions();
+
+      if (isCorrect) {
+        // Reveal full answer in slots
+        const slotsContainer = document.getElementById('slotsTray');
+        slotsContainer.innerHTML = `<div class="bg-emerald-950/80 border border-emerald-500 text-emerald-300 px-4 py-2 rounded-xl font-mono font-black text-sm tracking-widest animate-pulse">✓ ${assignedQ.answer}</div>`;
+
+        // Kahoot Points: Base 1000 pts minus slight time penalty (min 400 pts)
+        const speedPoints = Math.max(400, 1000 - (appState.elapsedSeconds * 4));
+        currentGroup.score += speedPoints;
+        currentGroup.currentQuestionIndex++;
+
+        fx.playCorrectJingle();
+
+        if (currentGroup.currentQuestionIndex >= TOTAL_QUESTIONS_TO_WIN) {
+          // GROUP HAS WON THE RACE!
+          currentGroup.completedAll = true;
+          currentGroup.completedAt = timestamp;
+          currentGroup.totalDurationSec = appState.elapsedSeconds;
+
+          fx.playFanfare();
+          confetti({ particleCount: 220, spread: 90, origin: { y: 0.4 } });
+
+          setFeedback(`🏁 UNBELIEVABLE! YOU SOLVED ALL 5 QUESTIONS IN ${appState.elapsedSeconds}s!`, true);
+          endGame(currentGroup.name);
+        } else {
+          // Advance to next envelope question
+          appState.envelopeOpened = false;
+          appState.availablePieces = [];
+
+          setFeedback(`✓ Correct! +${speedPoints} PTS. Opening Question ${currentGroup.currentQuestionIndex + 1}...`, true);
+
+          setTimeout(() => {
+            syncParticipantState();
+          }, 1200);
+        }
+      } else {
+        fx.playBuzzer();
+        setFeedback(`❌ "${submittedText}" is incorrect. Try speaking again!`, false);
+      }
+
+      renderAdminGroups();
+    }
+
+    function setFeedback(msg, isSuccess) {
+      const el = document.getElementById('participantFeedbackBox');
+      el.textContent = msg;
+      el.className = `text-xs font-bold min-h-[1.5rem] flex items-center ${isSuccess ? 'text-emerald-400' : 'text-rose-400'}`;
+    }
+
+    // Web Speech API
+    let recognition = null;
+    let isListening = false;
+
+    function initSpeech() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const tag = document.getElementById('playerMicTag');
+      const btn = document.getElementById('playerVoiceBtn');
+      const text = document.getElementById('playerVoiceBtnText');
+
+      if (!SR) {
+        tag.textContent = "NOT SUPPORTED";
+        text.textContent = "Speech API Unavailable";
+        btn.disabled = true;
+        return;
+      }
+
+      recognition = new SR();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        isListening = true;
+        tag.textContent = "RECORDING 🔴";
+        text.textContent = "Listening... Speak Now!";
+        btn.classList.replace('bg-cyan-600', 'bg-rose-600');
+      };
+
+      recognition.onresult = (evt) => {
+        const spoken = evt.results[0][0].transcript;
+        document.getElementById('playerVoiceTranscript').innerHTML = `Heard: <strong class="text-white">"${spoken}"</strong>`;
+        verifyAnswer(spoken, "Voice Command");
+      };
+
+      recognition.onerror = () => resetSpeechUI();
+      recognition.onend = () => resetSpeechUI();
+    }
+
+    function resetSpeechUI() {
+      isListening = false;
+      const tag = document.getElementById('playerMicTag');
+      const btn = document.getElementById('playerVoiceBtn');
+      const text = document.getElementById('playerVoiceBtnText');
+      if (tag) tag.textContent = "MIC READY";
+      if (text) text.textContent = "Tap to Speak Answer";
+      if (btn) btn.classList.replace('bg-rose-600', 'bg-cyan-600');
+    }
+
+    function toggleSpeech() {
+      if (!recognition) return;
+      if (isListening) recognition.stop();
+      else recognition.start();
+    }
+
+    // --- ADMIN DASHBOARD LOGIC ---
+    function renderAdminInterface() {
+      const authCard = document.getElementById('adminAuthCard');
+      const mainContent = document.getElementById('adminMainContent');
+
+      if (!appState.isAdminLoggedIn) {
+        authCard.classList.remove('hidden');
+        mainContent.classList.add('hidden');
+        return;
+      }
+
+      authCard.classList.add('hidden');
+      mainContent.classList.remove('hidden');
+
+      syncSessionBadges();
+      renderAdminGroups();
+      renderQuestionsList();
+      renderAdminSubmissions();
+    }
+
+    function renderAdminGroups() {
+      const grid = document.getElementById('adminGroupsStatusGrid');
+      if (!grid) return;
+
+      grid.innerHTML = appState.groups.map(g => {
+        const isChamp = appState.winningGroup === g.name;
+        const currentQId = g.questionTrack[g.currentQuestionIndex];
+        const assignedQ = appState.questions.find(q => q.id === currentQId);
+
+        return `
+          <div class="p-3.5 rounded-xl border transition ${
+            isChamp 
+              ? 'bg-amber-950/60 border-amber-400 shadow-xl ring-2 ring-amber-400/50' 
+              : g.completedAll 
+                ? 'bg-emerald-950/40 border-emerald-500' 
+                : g.joined 
+                  ? 'bg-slate-950 border-purple-700' 
+                  : 'bg-slate-950/60 border-purple-900'
+          }">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-black text-sm text-slate-200 flex items-center gap-1.5">
+                <span>Group ${g.id}</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded ${g.joined ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-800 text-purple-400'}">
+                  ${g.joined ? 'Connected' : 'Waiting'}
+                </span>
+              </span>
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded font-black ${
+                g.completedAll ? 'bg-emerald-400 text-slate-950' : 'bg-purple-900 text-amber-300'
+              }">
+                ${g.score} PTS
+              </span>
+            </div>
+
+            <!-- Progress bar -->
+            <div class="mb-2">
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-purple-300 font-bold">Progress</span>
+                <span class="text-amber-400 font-mono font-black">${g.currentQuestionIndex} / ${TOTAL_QUESTIONS_TO_WIN} Solved</span>
+              </div>
+              <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-purple-900">
+                <div class="h-full bg-gradient-to-r from-amber-400 to-emerald-400" style="width: ${(g.currentQuestionIndex / TOTAL_QUESTIONS_TO_WIN) * 100}%"></div>
+              </div>
+            </div>
+
+            <div class="text-[11px] text-purple-300 truncate">
+              Active: <strong class="text-white">${assignedQ ? assignedQ.category : (g.completedAll ? 'FINISHED' : 'Waiting')}</strong>
+            </div>
+
+            <div class="mt-2 pt-2 border-t border-purple-900/80 flex items-center justify-between text-[10px]">
+              <span class="text-purple-400 font-mono">Attempts: <strong class="text-white">${g.attempts}</strong></span>
+              ${g.completedAll ? `<span class="text-emerald-300 font-black">Won in ${g.totalDurationSec}s!</span>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderQuestionsList() {
+      const container = document.getElementById('questionsListContainer');
+      const countPill = document.getElementById('questionCountPill');
+      countPill.textContent = appState.questions.length;
+
+      if (appState.questions.length === 0) {
+        container.innerHTML = `<div class="p-6 text-center text-xs text-purple-400 italic">No questions found. Add questions or click 'Load 8 Standard Questions'.</div>`;
+        return;
+      }
+
+      container.innerHTML = appState.questions.map((q, idx) => `
+        <div class="bg-slate-950 border border-purple-900 p-3 rounded-xl flex items-start justify-between gap-3 hover:border-purple-700 transition">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-[10px] font-mono bg-purple-900 text-purple-200 px-1.5 py-0.5 rounded">#${idx + 1}</span>
+              <span class="text-xs font-bold text-amber-400 uppercase tracking-wider">${q.category}</span>
+            </div>
+            <p class="text-xs text-slate-200 line-clamp-2">${q.hint}</p>
+            <div class="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">
+              <span class="text-purple-300 font-mono">Ans: <strong class="text-emerald-400">${q.answer}</strong></span>
+              <span class="text-purple-500">|</span>
+              <span class="text-purple-300 font-mono">Pieces: <strong class="text-slate-300">${q.pieces ? q.pieces.join(', ') : 'auto'}</strong></span>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-1">
+            <button onclick="editQuestion('${q.id}')" class="text-xs text-indigo-400 hover:text-indigo-300 p-1.5 bg-purple-950 hover:bg-purple-900 rounded-lg border border-purple-800">
+              ✏️
+            </button>
+            <button onclick="deleteQuestion('${q.id}')" class="text-xs text-rose-400 hover:text-rose-300 p-1.5 bg-purple-950 hover:bg-purple-900 rounded-lg border border-purple-800">
+              🗑️
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderAdminSubmissions() {
+      const container = document.getElementById('adminSubmissionsFeed');
+      if (!container) return;
+
+      if (appState.submissions.length === 0) {
+        container.innerHTML = `<div class="text-xs text-purple-400 italic p-3 bg-slate-950 rounded-xl border border-purple-900">No submissions recorded in this race yet.</div>`;
+        return;
+      }
+
+      container.innerHTML = appState.submissions.map((s) => `
+        <div class="p-2.5 rounded-xl border text-xs flex items-center justify-between ${
+          s.isCorrect ? 'bg-emerald-950/60 border-emerald-600' : 'bg-slate-950 border-purple-900'
+        }">
+          <div>
+            <div class="flex items-center gap-2">
+              <strong class="text-white">${s.groupName}</strong>
+              <span class="text-[10px] bg-purple-900 text-purple-200 px-1.5 py-0.2 rounded font-mono">Q${s.questionIndex}</span>
+              <span class="text-[10px] px-1.5 py-0.2 rounded ${s.isCorrect ? 'bg-emerald-500 text-slate-950 font-bold' : 'bg-rose-900 text-rose-300'}">
+                ${s.isCorrect ? '✓ CORRECT' : '✗ INCORRECT'}
+              </span>
+            </div>
+            <div class="text-[11px] text-purple-200 mt-0.5">
+              Answer: <span class="font-mono text-amber-300 font-bold">${s.submittedAnswer}</span> via ${s.method}
+            </div>
+          </div>
+          <div class="text-right font-mono text-purple-300 text-[11px]">
+            ${s.elapsedSec}s
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Question CRUD
+    window.editQuestion = function(id) {
+      const q = appState.questions.find(item => item.id === id);
+      if (!q) return;
+
+      document.getElementById('editingQuestionId').value = q.id;
+      document.getElementById('qCategoryInput').value = q.category;
+      document.getElementById('qHintInput').value = q.hint;
+      document.getElementById('qAnswerInput').value = q.answer;
+      document.getElementById('qPiecesInput').value = q.pieces ? q.pieces.join(', ') : '';
+
+      document.getElementById('questionFormHeading').textContent = `✏️ EDIT QUESTION #${q.id.replace('q-','')}`;
+      document.getElementById('saveQuestionBtn').textContent = "Update Question";
+      document.getElementById('cancelEditBtn').classList.remove('hidden');
+    };
+
+    window.deleteQuestion = function(id) {
+      if (appState.questions.length <= TOTAL_QUESTIONS_TO_WIN) {
+        showAdminStatus(`⚠️ Warning: You need at least ${TOTAL_QUESTIONS_TO_WIN} questions for the 5-question Kahoot race!`, true);
+      }
+      appState.questions = appState.questions.filter(q => q.id !== id);
+      renderQuestionsList();
+      showAdminStatus("✓ Question removed.");
+    };
+
+    function resetQuestionForm() {
+      document.getElementById('editingQuestionId').value = '';
+      document.getElementById('questionCrudForm').reset();
+      document.getElementById('questionFormHeading').textContent = "➕ ADD NEW QUESTION PAIR";
+      document.getElementById('saveQuestionBtn').textContent = "Save Question";
+      document.getElementById('cancelEditBtn').classList.add('hidden');
+    }
+
+    function handleQuestionSubmit(e) {
+      e.preventDefault();
+      const editId = document.getElementById('editingQuestionId').value;
+      const cat = document.getElementById('qCategoryInput').value.trim();
+      const hint = document.getElementById('qHintInput').value.trim();
+      const ans = document.getElementById('qAnswerInput').value.trim().toUpperCase();
+      const piecesRaw = document.getElementById('qPiecesInput').value.trim();
+
+      let pieces = [];
+      if (piecesRaw) {
+        pieces = piecesRaw.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      } else {
+        pieces = ans.replace(/\s+/g, '').split('');
+      }
+
+      if (editId) {
+        const target = appState.questions.find(q => q.id === editId);
+        if (target) {
+          target.category = cat;
+          target.hint = hint;
+          target.answer = ans;
+          target.pieces = pieces;
+          showAdminStatus("✓ Question updated successfully.");
+        }
+      } else {
+        const newId = `q-${Date.now()}`;
+        appState.questions.push({
+          id: newId,
+          category: cat,
+          hint: hint,
+          answer: ans,
+          pieces: pieces
+        });
+        showAdminStatus(`✓ Question added! Total pool: ${appState.questions.length}`);
+      }
+
+      resetQuestionForm();
+      renderQuestionsList();
+    }
+
+    function showAdminStatus(msg, isErr = false) {
+      const el = document.getElementById('crudStatusMessage');
+      if (!el) return;
+      el.textContent = msg;
+      el.className = `mt-3 text-xs font-semibold ${isErr ? 'text-rose-400' : 'text-emerald-400'}`;
+      setTimeout(() => { if (el) el.textContent = ''; }, 4500);
+    }
+
+    // --- KAHOOT RANKED PODIUM & LEADERBOARD ---
+    function renderLeaderboard() {
+      const sorted = [...appState.groups].sort((a, b) => {
+        // Priority 1: Completed all 5 questions
+        if (a.completedAll && !b.completedAll) return -1;
+        if (!a.completedAll && b.completedAll) return 1;
+        if (a.completedAll && b.completedAll) return a.totalDurationSec - b.totalDurationSec;
+        // Priority 2: Current question count
+        if (b.currentQuestionIndex !== a.currentQuestionIndex) {
+          return b.currentQuestionIndex - a.currentQuestionIndex;
+        }
+        // Priority 3: Total Points
+        return b.score - a.score;
+      });
+
+      const podium = document.getElementById('modalPodiumView');
+      const table = document.getElementById('modalLeaderboardTable');
+
+      const first = sorted[0];
+      const second = sorted[1];
+      const third = sorted[2];
+
+      podium.innerHTML = `
+        <div class="flex flex-col items-center">
+          <span class="text-xs font-bold text-purple-200">${second ? second.name : '-'}</span>
+          <span class="text-[10px] font-mono text-amber-300">${second ? second.score + ' PTS' : '--'}</span>
+          <div class="w-16 bg-slate-800 h-16 rounded-t-xl flex flex-col items-center justify-center border-t-2 border-slate-400 shadow mt-1">
+            <span class="text-lg">🥈</span>
+            <span class="text-[10px] font-bold text-slate-300">2ND</span>
+          </div>
+        </div>
+
+        <div class="flex flex-col items-center -mt-3">
+          <span class="text-xs font-black text-amber-300">${first ? first.name : '-'}</span>
+          <span class="text-[11px] font-mono text-amber-400 font-bold">${first ? first.score + ' PTS' : '--'}</span>
+          <div class="w-20 bg-gradient-to-t from-amber-500 to-amber-400 h-24 rounded-t-xl flex flex-col items-center justify-center border-t-2 border-amber-300 shadow-xl mt-1">
+            <span class="text-2xl">🥇</span>
+            <span class="text-xs font-black text-slate-950">1ST</span>
+          </div>
+        </div>
+
+        <div class="flex flex-col items-center">
+          <span class="text-xs font-bold text-purple-200">${third ? third.name : '-'}</span>
+          <span class="text-[10px] font-mono text-amber-300">${third ? third.score + ' PTS' : '--'}</span>
+          <div class="w-16 bg-amber-950/70 h-12 rounded-t-xl flex flex-col items-center justify-center border-t-2 border-amber-800 shadow mt-1">
+            <span class="text-base">🥉</span>
+            <span class="text-[10px] font-bold text-amber-300">3RD</span>
+          </div>
+        </div>
+      `;
+
+      table.innerHTML = sorted.map((g, idx) => `
+        <div class="flex items-center justify-between p-2.5 rounded-xl border text-xs ${
+          g.completedAll ? 'bg-purple-900/60 border-amber-400' : 'bg-slate-950 border-purple-900'
+        }">
+          <div class="flex items-center gap-3">
+            <span class="font-black w-6 text-center ${idx === 0 ? 'text-amber-400 font-bold' : 'text-purple-300'}">#${idx + 1}</span>
+            <div>
+              <span class="font-bold text-white">${g.name}</span>
+              <span class="text-[10px] text-purple-400 ml-1">(${g.currentQuestionIndex}/${TOTAL_QUESTIONS_TO_WIN} solved)</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 font-mono">
+            <span class="text-amber-300 font-bold">${g.score} PTS</span>
+            <span class="text-[10px] px-2 py-0.5 rounded font-bold ${
+              g.completedAll ? 'bg-amber-400 text-slate-950' : 'bg-purple-900 text-purple-200'
+            }">
+              ${g.completedAll ? '🏁 WON' : 'RACING'}
+            </span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // --- EVENT LISTENERS ---
+    window.addEventListener('DOMContentLoaded', () => {
+      initSpeech();
+      generateTracksForGroups();
+      renderGroupSelectorButtons();
+      syncSessionBadges();
+
+      // View toggle buttons
+      document.getElementById('viewParticipantBtn').addEventListener('click', () => switchView('participant'));
+      document.getElementById('viewAdminBtn').addEventListener('click', () => switchView('admin'));
+
+      // Participant Join & Lobby
+      document.getElementById('confirmJoinBtn').addEventListener('click', handleParticipantJoin);
+      document.getElementById('lobbyLeaveBtn').addEventListener('click', () => {
+        appState.activeParticipantJoined = false;
+        syncParticipantState();
+      });
+
+      // Participant Envelope
+      document.getElementById('unsealEnvelopeBtn').addEventListener('click', unsealParticipantEnvelope);
+      document.getElementById('envelopeVisual').addEventListener('click', unsealParticipantEnvelope);
+
+      // Participant Voice Recognition
+      document.getElementById('playerVoiceBtn').addEventListener('click', toggleSpeech);
+
+      // Admin Auth
+      document.getElementById('adminLoginBtn').addEventListener('click', () => {
+        const pin = document.getElementById('adminPinInput').value;
+        const err = document.getElementById('adminAuthError');
+        if (pin === "1234") {
+          appState.isAdminLoggedIn = true;
+          err.classList.add('hidden');
+          renderAdminInterface();
+          fx.playPop();
+        } else {
+          err.textContent = "Incorrect admin PIN. Default is 1234.";
+          err.classList.remove('hidden');
+        }
+      });
+
+      // Admin Session Controls
+      document.getElementById('adminStartGameBtn').addEventListener('click', triggerSynchronizedStart);
+      document.getElementById('adminPauseGameBtn').addEventListener('click', pauseGame);
+      document.getElementById('adminEndGameBtn').addEventListener('click', () => endGame());
+      document.getElementById('adminResetSessionBtn').addEventListener('click', resetSession);
+      document.getElementById('adminShuffleQuestionsBtn').addEventListener('click', generateTracksForGroups);
+
+      // Admin Question CRUD
+      document.getElementById('questionCrudForm').addEventListener('submit', handleQuestionSubmit);
+      document.getElementById('cancelEditBtn').addEventListener('click', resetQuestionForm);
+      document.getElementById('seedSampleQuestionsBtn').addEventListener('click', () => {
+        appState.questions = [...initialQuestionBank];
+        renderQuestionsList();
+        showAdminStatus("✓ Reset to standard questions.");
+      });
+
+      // Leaderboard Modal
+      const lbModal = document.getElementById('leaderboardModal');
+      document.getElementById('globalLeaderboardBtn').addEventListener('click', () => {
+        renderLeaderboard();
+        lbModal.classList.remove('hidden');
+      });
+      document.getElementById('viewLeaderboardFromBannerBtn').addEventListener('click', () => {
+        renderLeaderboard();
+        lbModal.classList.remove('hidden');
+      });
+      document.getElementById('closeLeaderboardModalBtn').addEventListener('click', () => lbModal.classList.add('hidden'));
+      document.getElementById('closeLeaderboardBtn').addEventListener('click', () => lbModal.classList.add('hidden'));
+
+      // Rules Modal
+      const rModal = document.getElementById('rulesModal');
+      document.getElementById('rulesNavBtn').addEventListener('click', () => rModal.classList.remove('hidden'));
+      document.getElementById('closeRulesModalBtn').addEventListener('click', () => rModal.classList.add('hidden'));
+      document.getElementById('gotRulesBtn').addEventListener('click', () => rModal.classList.add('hidden'));
+
+      // QR Simulator
+      document.getElementById('qrSimBtn').addEventListener('click', () => {
+        document.getElementById('inputGamePin').value = appState.gamePin;
+        fx.playPop();
+      });
+    });
+  </script>
+</body>
+</html>
