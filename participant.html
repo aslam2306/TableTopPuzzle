@@ -184,7 +184,7 @@
                   0 PTS
                 </span>
               </div>
-              <p class="text-xs text-purple-300">60s per question • Answer fast for more points — highest score wins!</p>
+              <p class="text-xs text-purple-300">45s per question • Answer fast for more points — highest score wins!</p>
             </div>
           </div>
 
@@ -196,7 +196,7 @@
 
             <div class="text-right bg-slate-950 px-3.5 py-1.5 rounded-xl border border-purple-800">
               <span class="text-[10px] text-purple-300 uppercase tracking-wider block font-black">Question Timer</span>
-              <span id="questionTimer" class="font-mono text-base font-black text-emerald-400">60s</span>
+              <span id="questionTimer" class="font-mono text-base font-black text-emerald-400">45s</span>
             </div>
 
             <button id="playAreaLeaveBtn" title="Leave Group" class="text-xs text-purple-300 hover:text-rose-300 bg-slate-950 px-2.5 py-2 rounded-xl border border-purple-800 transition">
@@ -373,7 +373,7 @@
         </li>
         <li class="flex items-start gap-2">
           <span class="bg-amber-400 text-slate-950 font-black rounded-full w-5 h-5 flex items-center justify-center text-[10px] flex-shrink-0">5</span>
-          <span><strong>60s per question — faster correct answers earn up to 1,000 PTS! Highest total points wins!</strong></span>
+          <span><strong>45s per question — faster correct answers earn up to 1,000 PTS! Highest total points wins!</strong></span>
         </li>
       </ol>
       <div class="mt-5 text-right">
@@ -399,7 +399,7 @@
       fx
     } = window.KahootRelay;
 
-    const QUESTION_TIME_LIMIT_SEC = 60;
+    const QUESTION_TIME_LIMIT_SEC = 45;
     function getElapsedMs(state) {
       let ms = state.accumulatedElapsedMs || 0;
       if (state.sessionState === 'RUNNING' && state.raceStartedAt) ms += Math.max(0, KahootRelay.now() - state.raceStartedAt);
@@ -724,7 +724,7 @@
         });
 
         if (isCorrect) {
-          // Per-question speed points: 1000 PTS (instant) down to 100 PTS (at 60s)
+          // Per-question speed points: 1000 PTS (instant) down to 100 PTS (at 45s)
           const qSec = Math.min(QUESTION_TIME_LIMIT_SEC, Math.max(0, questionElapsedMs(s, g) / 1000));
           awardedPoints = Math.max(100, Math.round(1000 - (qSec / QUESTION_TIME_LIMIT_SEC) * 900));
           g.score += awardedPoints;
@@ -1132,7 +1132,7 @@
       }).join('');
     }
 
-    // --- PER-QUESTION 60s TIMER (auto-skip to next question on timeout) ---
+    // --- PER-QUESTION 45s TIMER (auto-skip to next question on timeout) ---
     function tickQuestionTimer(state) {
       const el = document.getElementById('questionTimer');
       const tabSession = loadTabSession();
