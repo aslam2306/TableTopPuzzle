@@ -10,7 +10,7 @@
 // Leave '' to use server.js (node server.js) or same-browser mode.
 // ============================================================================
 const FIREBASE_DB_URL = 'https://tabletop-puzzle-default-rtdb.firebaseio.com';
-const FB = FIREBASE_DB_URL.trim().replace(/\/+$/, '');
+const FB = FIREBASE_DB_URL.trim().replace(/\/+$/, 'https://tabletop-puzzle-default-rtdb.firebaseio.com');
 const STORAGE_KEY = 'kahoot_envelope_relay_state_v3';
 const CHANNEL_NAME = 'kahoot_envelope_relay_channel_v2';
 const TOTAL_QUESTIONS_TO_WIN = 3;
