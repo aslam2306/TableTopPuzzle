@@ -14,7 +14,7 @@ const FB = FIREBASE_DB_URL.trim().replace(/\/+$/, 'https://tabletop-puzzle-defau
 const STORAGE_KEY = 'kahoot_envelope_relay_state_v3';
 const CHANNEL_NAME = 'kahoot_envelope_relay_channel_v2';
 const TOTAL_QUESTIONS_TO_WIN = 3;
-const QUESTION_TIME_LIMIT_SEC = 60;
+const QUESTION_TIME_LIMIT_SEC = 45;
 const BANK_VERSION = 3; // bump to force old questions in shared storage to be replaced
 
 const INITIAL_QUESTION_BANK = [
@@ -511,7 +511,7 @@ setInterval(() => {
     notifyStateListeners(latest);
   }
 
-  // Auto-advance any joined group whose 60s timer expired (with 1s grace for background/closed tabs)
+  // Auto-advance any joined group whose 45s timer expired (with 1s grace for background/closed tabs)
   if (latest.sessionState === 'RUNNING') {
     const totalMs = getElapsedMs(latest);
     const hasExpired = (latest.groups || []).some(g =>
